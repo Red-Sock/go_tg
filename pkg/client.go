@@ -57,7 +57,6 @@ func (b *Bot) AddCommandHandlerFunc(function func(ctx context.Context, in *model
 }
 
 func (b *Bot) Start() {
-
 	if b.EnrichContext == nil {
 		b.EnrichContext = GetContextFunc(func(_ *model.MessageIn) (context.Context, error) {
 			return context.Background(), nil
@@ -101,16 +100,6 @@ func (b *Bot) HandleMessage(in *tgbotapi.Message) {
 		Message: in,
 	}
 	var handler CommandHandler
-	if message.ReplyMarkup != nil {
-		btns := &model.InlineKeyboard{}
-		btns.AddButton("two", "two")
-
-		msg := tgbotapi.NewEditMessageReplyMarkup(message.Chat.ID, message.MessageID, btns.ToMarkup())
-		_, err := b.Bot.Send(msg)
-		if err != nil {
-
-		}
-	}
 	if strings.HasPrefix(message.Text, "/") {
 		args := strings.Split(message.Text, b.separator)
 		message.Command = args[0]

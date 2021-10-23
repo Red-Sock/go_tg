@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/AlexSkilled/go_tg/pkg/model"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // CommandHandler - structure that contains logic for
@@ -31,4 +32,8 @@ type GetContextFunc func(in *model.MessageIn) (context.Context, error)
 
 func (g GetContextFunc) GetContext(in *model.MessageIn) (context.Context, error) {
 	return g(in)
+}
+
+type TgMessage interface {
+	ToTgMessage(chatId int64) tgbotapi.Chattable
 }

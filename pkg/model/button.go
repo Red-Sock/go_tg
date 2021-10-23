@@ -19,7 +19,7 @@ func (b *InlineKeyboard) AddButton(text, value string) {
 		Value: value,
 	})
 }
-func (b *InlineKeyboard) ToMarkup() tgbotapi.InlineKeyboardMarkup {
+func (b *InlineKeyboard) ToMarkup() *tgbotapi.InlineKeyboardMarkup {
 	if b.Columns == 0 {
 		b.Columns = 1
 	}
@@ -37,7 +37,7 @@ func (b *InlineKeyboard) ToMarkup() tgbotapi.InlineKeyboardMarkup {
 		i++
 	}
 
-	return tgbotapi.InlineKeyboardMarkup{InlineKeyboard: finalButtonsSet}
+	return &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: finalButtonsSet}
 }
 
 type Keyboard struct {
@@ -51,7 +51,7 @@ type Keyboard struct {
 func (b *Keyboard) AddKey(value string) {
 	b.btns = append(b.btns, value)
 }
-func (b *Keyboard) toMarkup() tgbotapi.ReplyKeyboardMarkup {
+func (b *Keyboard) toMarkup() *tgbotapi.ReplyKeyboardMarkup {
 	if b.Columns == 0 {
 		b.Columns = 1
 	}
@@ -69,5 +69,5 @@ func (b *Keyboard) toMarkup() tgbotapi.ReplyKeyboardMarkup {
 		i++
 	}
 
-	return tgbotapi.ReplyKeyboardMarkup{Keyboard: finalButtonsSet, ResizeKeyboard: true}
+	return &tgbotapi.ReplyKeyboardMarkup{Keyboard: finalButtonsSet, ResizeKeyboard: true}
 }
