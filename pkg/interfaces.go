@@ -2,6 +2,8 @@ package pkg
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/AlexSkilled/go_tg/pkg/model"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -13,16 +15,8 @@ import (
 // Use it When you have to work with dynamic data, such as
 // database, other service and etc
 type CommandHandler interface {
-	Handle(ctx context.Context, in *model.MessageIn) (out *model.MessageOut)
-}
-
-// CommandHandlerFunc - function for handling simple request logic
-// use it when you work with static data and
-// don't need to create a structure
-type CommandHandlerFunc func(ctx context.Context, in *model.MessageIn) (out *model.MessageOut)
-
-func (c CommandHandlerFunc) Handle(ctx context.Context, in *model.MessageIn) (out *model.MessageOut) {
-	return c(ctx, in)
+	Handle(ctx context.Context, in *model.MessageIn) (out TgMessage)
+	Dump(id int64)
 }
 
 type EnrichContext interface {
@@ -35,5 +29,26 @@ func (g GetContextFunc) GetContext(in *model.MessageIn) (context.Context, error)
 }
 
 type TgMessage interface {
-	ToTgMessage(chatId int64) tgbotapi.Chattable
+	Send(api *tgbotapi.BotAPI, chatId int64) error
+}
+
+type MultipleMessage map[int64][]TgMessage
+
+func (m *MultipleMessage) Send(bot *tgbotapi.BotAPI, _ int64) error {
+	errors := make([]string, 0)
+	for chatId, messages := range *m {
+		for _, message := range messages {
+			err := message.Send(bot, chatId)
+			if err != nil {
+				errors = append(errors, err.Error())
+			}
+		}
+
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+
+	return fmt.Errorf("%s", strings.Join(errors, "\n"))
 }

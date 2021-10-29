@@ -45,17 +45,6 @@ func (b *Bot) AddCommandHandler(handler CommandHandler, command string) {
 	b.handlers[command] = handler
 }
 
-// AddCommandHandlerFunc adds a simple handler function
-// for command without arguments
-// e.g. for command "/help"
-// handler should send help information to user
-func (b *Bot) AddCommandHandlerFunc(function func(ctx context.Context, in *model.MessageIn) (out *model.MessageOut), command string) {
-	_, ok := b.handlers[command]
-	if !ok {
-		b.handlers[command] = CommandHandlerFunc(function)
-	}
-}
-
 func (b *Bot) Start() {
 	if b.EnrichContext == nil {
 		b.EnrichContext = GetContextFunc(func(_ *model.MessageIn) (context.Context, error) {
@@ -71,31 +60,35 @@ func (b *Bot) Start() {
 	for update := range updChan {
 		switch {
 		case update.Message != nil:
-			b.HandleMessage(update.Message)
+			b.handleMessage(update.Message)
 			break
 		case update.CallbackQuery != nil:
 			message := update.CallbackQuery.Message
 			message.Text = update.CallbackQuery.Data
 			message.From = update.CallbackQuery.From
 
-			b.HandleMessage(message)
+			b.handleMessage(message)
 			break
 		}
 	}
 }
 
-func (b *Bot) SendResponse(in *model.MessageIn, out *model.MessageOut) {
-	_, err := b.Bot.Send(out.ToTgMessage(in.Chat.ID))
+func (b *Bot) SendMessage(t TgMessage, chatId int64) error {
+	return t.Send(b.Bot, chatId)
+}
+
+func (b *Bot) sendResponse(in *model.MessageIn, out TgMessage) {
+	err := out.Send(b.Bot, in.Chat.ID)
 	if err != nil {
 		logrus.Infof("Ошибка при отправке сообщения: %v", err)
 	}
-	logrus.Infof("Пользователь %d написал %s и получил ответ %s",
+	logrus.Infof("Пользователь %d написал %s и получил ответ %v",
 		in.From.ID,
 		in.Text,
-		out.Text)
+		out)
 }
 
-func (b *Bot) HandleMessage(in *tgbotapi.Message) {
+func (b *Bot) handleMessage(in *tgbotapi.Message) {
 	message := &model.MessageIn{
 		Message: in,
 	}
@@ -106,9 +99,13 @@ func (b *Bot) HandleMessage(in *tgbotapi.Message) {
 		if len(args) > 1 {
 			message.Args = args[1:]
 		}
+		handler = b.chats[message.Chat.ID]
+		if handler != nil {
+			handler.Dump(message.Chat.ID)
+		}
 		handler = b.handlers[message.Command]
 		if handler == nil {
-			b.SendResponse(message, &model.MessageOut{Text: fmt.Sprintf("Не знаю как обработать команду \"%s\"", message.Command)})
+			b.sendResponse(message, &model.MessageOut{Text: fmt.Sprintf("Не знаю как обработать команду \"%s\"", message.Command)})
 			return
 		}
 		b.chats[message.Chat.ID] = handler
@@ -120,18 +117,18 @@ func (b *Bot) HandleMessage(in *tgbotapi.Message) {
 		return
 	}
 
-	var messageOut *model.MessageOut
+	var messageOut TgMessage
 
 	if handler == nil {
 		handler = b.chats[message.Chat.ID]
 		if handler == nil {
-			b.SendResponse(message, &model.MessageOut{Text: fmt.Sprintf("Не знаю что ответить на \"%s\"", message.Text)})
+			b.sendResponse(message, &model.MessageOut{Text: fmt.Sprintf("Не знаю что ответить на \"%s\"", message.Text)})
 			return
 		}
 	}
 
 	messageOut = handler.Handle(ctx, message)
 	if messageOut != nil {
-		b.SendResponse(message, messageOut)
+		b.sendResponse(message, messageOut)
 	}
 }
