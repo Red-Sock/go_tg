@@ -18,8 +18,11 @@ type Bot struct {
 	handlers map[string]CommandHandler
 	EnrichContext
 	separator string
+
+	menuPatterns []model.MenuPattern
 }
 
+// NewBot Bot constructor
 func NewBot(token string) *Bot {
 	bot, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
@@ -45,11 +48,19 @@ func (b *Bot) AddCommandHandler(handler CommandHandler, command string) {
 	b.handlers[command] = handler
 }
 
+func (b *Bot) AddMenu(pattern model.MenuPattern) {
+	b.menuPatterns = append(b.menuPatterns, pattern)
+}
+
 func (b *Bot) Start() {
 	if b.EnrichContext == nil {
 		b.EnrichContext = GetContextFunc(func(_ *model.MessageIn) (context.Context, error) {
 			return context.Background(), nil
 		})
+	}
+	if b.menuPatterns != nil {
+		b.handlers[model.MenuCall] = newMenuHandler(b)
+		b.handlers[model.OpenMenu] = b.handlers[model.MenuCall]
 	}
 
 	updateConfig := tgbotapi.NewUpdate(0)
@@ -104,10 +115,7 @@ func (b *Bot) handleMessage(in *tgbotapi.Message) {
 			handler.Dump(message.Chat.ID)
 		}
 		handler = b.handlers[message.Command]
-		if handler == nil {
-			b.sendResponse(message, &model.MessageOut{Text: fmt.Sprintf("Не знаю как обработать команду \"%s\"", message.Command)})
-			return
-		}
+
 		b.chats[message.Chat.ID] = handler
 	}
 
@@ -122,13 +130,32 @@ func (b *Bot) handleMessage(in *tgbotapi.Message) {
 	if handler == nil {
 		handler = b.chats[message.Chat.ID]
 		if handler == nil {
-			b.sendResponse(message, &model.MessageOut{Text: fmt.Sprintf("Не знаю что ответить на \"%s\"", message.Text)})
+			b.DefaultHandle(ctx, message)
 			return
 		}
 	}
 
 	messageOut = handler.Handle(ctx, message)
-	if messageOut != nil {
+	switch r := messageOut.(type) {
+	case *model.Callback:
+		r.Callback(in)
+		b.handleMessage(in)
+	case nil:
+		return
+	default:
 		b.sendResponse(message, messageOut)
 	}
+
+}
+
+func (b *Bot) DefaultHandle(ctx context.Context, in *model.MessageIn) {
+	menuHandler := b.handlers[model.MenuCall]
+	messageOut := menuHandler.Handle(ctx, in)
+
+	if messageOut != nil {
+		b.sendResponse(in, messageOut)
+		return
+	}
+
+	b.sendResponse(in, &model.MessageOut{Text: fmt.Sprintf("Не знаю что ответить на \"%s\"", in.Text)})
 }
