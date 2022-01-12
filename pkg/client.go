@@ -78,6 +78,9 @@ func (b *Bot) Start() {
 			message.Text = update.CallbackQuery.Data
 			message.From = update.CallbackQuery.From
 
+			if _, err := b.Bot.Request(tgbotapi.CallbackConfig{CallbackQueryID: update.CallbackQuery.ID}); err != nil {
+				logrus.Errorf("error when replied to users's callback: %v", err)
+			}
 			b.handleMessage(message)
 			break
 		}

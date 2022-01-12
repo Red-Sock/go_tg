@@ -14,6 +14,7 @@ const (
 type Callback struct {
 	Command string
 	Type    CallbackType
+	Menu    Menu
 }
 
 func (c *Callback) Send(api *tgbotapi.BotAPI, chatId int64) error {

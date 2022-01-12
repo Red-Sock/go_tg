@@ -75,7 +75,7 @@ func (m *SimpleMenuPattern) GetTransitionCommand() string {
 	return m.EntryPoint
 }
 
-func (m *SimpleMenuPattern) compile() Menu {
+func (m *SimpleMenuPattern) Compile() Menu {
 	if m.RawsOnPage == 0 {
 		m.RawsOnPage = 5
 	}

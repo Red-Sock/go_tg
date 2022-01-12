@@ -112,13 +112,13 @@ func (l *LocalizedMenuPatterns) GetTransitionCommand() string {
 	return MenuCall + " " + l.command
 }
 
-func (l *LocalizedMenuPatterns) compile() Menu {
+func (l *LocalizedMenuPatterns) Compile() Menu {
 	lm := LocalizedMenu{
 		menus:   map[string]Menu{},
 		command: l.command,
 	}
 	for locale, menu := range l.localeToPatterns {
-		lm.menus[locale] = menu.compile()
+		lm.menus[locale] = menu.Compile()
 	}
 	return &lm
 }

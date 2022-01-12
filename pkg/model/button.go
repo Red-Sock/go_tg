@@ -3,8 +3,9 @@ package model
 import tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
 type button struct {
-	Text  string
-	Value string
+	Text       string
+	Value      string
+	StandAlone bool
 }
 
 type InlineKeyboard struct {
@@ -19,6 +20,15 @@ func (b *InlineKeyboard) AddButton(text, value string) {
 		Value: value,
 	})
 }
+
+func (b *InlineKeyboard) AddStandAloneButton(text, value string) {
+	b.btns = append(b.btns, button{
+		Text:       text,
+		Value:      value,
+		StandAlone: true,
+	})
+}
+
 func (b *InlineKeyboard) ToMarkup() *tgbotapi.InlineKeyboardMarkup {
 	if b.Columns == 0 {
 		b.Columns = 1
@@ -28,12 +38,18 @@ func (b *InlineKeyboard) ToMarkup() *tgbotapi.InlineKeyboardMarkup {
 	i := 0
 	raw := -1
 	for i < len(b.btns) {
-		if i%b.Columns == 0 {
-			finalButtonsSet = append(finalButtonsSet, make([]tgbotapi.InlineKeyboardButton, 0, b.Columns))
+		if b.btns[i].StandAlone {
+			finalButtonsSet = append(finalButtonsSet, []tgbotapi.InlineKeyboardButton{tgbotapi.NewInlineKeyboardButtonData(b.btns[i].Text, b.btns[i].Value)})
 			raw++
+		} else {
+			if i%b.Columns == 0 {
+				finalButtonsSet = append(finalButtonsSet, make([]tgbotapi.InlineKeyboardButton, 0, b.Columns))
+				raw++
+			}
+			finalButtonsSet[raw] = append(finalButtonsSet[raw],
+				tgbotapi.NewInlineKeyboardButtonData(b.btns[i].Text, b.btns[i].Value))
+
 		}
-		finalButtonsSet[raw] = append(finalButtonsSet[raw],
-			tgbotapi.NewInlineKeyboardButtonData(b.btns[i].Text, b.btns[i].Value))
 		i++
 	}
 

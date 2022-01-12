@@ -18,11 +18,11 @@ type MenuPattern interface {
 	GetCallCommand() string
 	GetTransitionCommand() string
 
-	compile() Menu
+	Compile() Menu
 }
 
 func NewMenu(pattern MenuPattern) Menu {
-	return pattern.compile()
+	return pattern.Compile()
 }
 
 // MenuButton - basic inline Keyboard MenuPattern item
