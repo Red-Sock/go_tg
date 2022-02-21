@@ -71,17 +71,23 @@ func (b *Bot) Start() {
 	for update := range updChan {
 		switch {
 		case update.Message != nil:
-			b.handleMessage(update.Message)
+
+			b.handleMessage(&model.MessageIn{
+				Message: update.Message,
+			})
 			break
 		case update.CallbackQuery != nil:
 			message := update.CallbackQuery.Message
 			message.Text = update.CallbackQuery.Data
 			message.From = update.CallbackQuery.From
 
-			if _, err := b.Bot.Request(tgbotapi.CallbackConfig{CallbackQueryID: update.CallbackQuery.ID}); err != nil {
-				logrus.Errorf("error when replied to users's callback: %v", err)
+			_, err := b.Bot.Request(tgbotapi.CallbackConfig{CallbackQueryID: update.CallbackQuery.ID})
+			if err != nil {
+				return
 			}
-			b.handleMessage(message)
+			b.handleMessage(&model.MessageIn{
+				Message: update.CallbackQuery.Message,
+			})
 			break
 		}
 	}
@@ -95,17 +101,16 @@ func (b *Bot) sendResponse(in *model.MessageIn, out TgMessage) {
 	err := out.Send(b.Bot, in.Chat.ID)
 	if err != nil {
 		logrus.Infof("Ошибка при отправке сообщения: %v", err)
+	} else {
+		logrus.Infof("Пользователь %d написал %s и получил ответ %v",
+			in.From.ID,
+			in.Text,
+			out)
 	}
-	logrus.Infof("Пользователь %d написал %s и получил ответ %v",
-		in.From.ID,
-		in.Text,
-		out)
 }
 
-func (b *Bot) handleMessage(in *tgbotapi.Message) {
-	message := &model.MessageIn{
-		Message: in,
-	}
+func (b *Bot) handleMessage(message *model.MessageIn) {
+
 	var handler CommandHandler
 	if strings.HasPrefix(message.Text, "/") {
 		args := strings.Split(message.Text, b.separator)
@@ -141,12 +146,26 @@ func (b *Bot) handleMessage(in *tgbotapi.Message) {
 	messageOut = handler.Handle(ctx, message)
 	switch r := messageOut.(type) {
 	case *model.Callback:
-		r.Callback(in)
-		b.handleMessage(in)
+		r.Ctx = ctx
+		b.processCallback(r, message)
+	case *model.Reply:
+		return
 	case nil:
 		return
 	default:
 		b.sendResponse(message, messageOut)
+	}
+
+}
+
+func (b *Bot) processCallback(callback *model.Callback, message *model.MessageIn) {
+	if callback.Process(message) {
+		err := callback.Send(b.Bot, message.Chat.ID)
+		if err != nil {
+			logrus.Errorf("Error handling callback %v", err)
+		}
+	} else {
+		b.handleMessage(message)
 	}
 
 }

@@ -9,6 +9,7 @@ type Menu interface {
 	GetPage(ctx context.Context, i int) InlineKeyboard
 	GetCallCommand() string
 	GetTransitionCommand() string
+	GetPreviousMenu() Menu
 }
 
 // MenuPattern

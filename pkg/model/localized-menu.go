@@ -13,6 +13,10 @@ type LocalizedMenu struct {
 	command string
 }
 
+func (l *LocalizedMenu) GetPreviousMenu() Menu {
+	panic("implement me")
+}
+
 func (l *LocalizedMenu) GetCallCommand() string {
 	return l.command
 }
@@ -63,10 +67,6 @@ func NewLocalizedMenuPattern(command string) *LocalizedMenuPatterns {
 	}
 }
 
-func AssembleMenu(command string, localeToMenus map[string]MenuPattern) {
-
-}
-
 func (l *LocalizedMenuPatterns) AddMenu(locale, name string) {
 	l.localeToPatterns[locale] = NewMenuPattern(name)
 }
@@ -80,7 +80,7 @@ func (l *LocalizedMenuPatterns) AddMenus(localeToName map[string]string) {
 func (l *LocalizedMenuPatterns) AddLocalizedMenuButton(localeToName map[string]string, command string) {
 	for locale, name := range localeToName {
 		if pattern, ok := l.localeToPatterns[locale]; ok {
-			pattern.AddMenuButton(name, command)
+			pattern.AddButton(name, command)
 			l.localeToPatterns[locale] = pattern
 		} else {
 			logrus.Error(errors.New(fmt.Sprintf("Error while creating multilanguage menu. No menu was created for locale %s.", locale)))
@@ -90,7 +90,7 @@ func (l *LocalizedMenuPatterns) AddLocalizedMenuButton(localeToName map[string]s
 
 func (l *LocalizedMenuPatterns) AddMenuButton(locale, name string, command string) {
 	if pattern, ok := l.localeToPatterns[locale]; ok {
-		pattern.AddMenuButton(name, command)
+		pattern.AddButton(name, command)
 		l.localeToPatterns[locale] = pattern
 	} else {
 		logrus.Error(errors.New(fmt.Sprintf("Error while creating multilanguage menu. No menu was created for locale %s.", locale)))
