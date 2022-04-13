@@ -12,11 +12,16 @@ import (
 
 // Bot - allows you to interact with telegram bot
 // with some features
+// tgbotapi.BotAPI - realisation of API calls to Telegram;
+// chats - mapping of chat ids to their current handlers;
+// handlers - mapping of name of handler to realisation;
+// External context - can be used to pass information (such as user info) to handlers
+// menuPattern - menu interaction(todo needs to be reworked)
 type Bot struct {
 	Bot      *tgbotapi.BotAPI
 	chats    map[int64]CommandHandler
 	handlers map[string]CommandHandler
-	EnrichContext
+	ExternalContext
 	separator string
 
 	menuPatterns []model.MenuPattern
@@ -53,14 +58,13 @@ func (b *Bot) AddMenu(pattern model.MenuPattern) {
 }
 
 func (b *Bot) Start() {
-	if b.EnrichContext == nil {
-		b.EnrichContext = GetContextFunc(func(_ *model.MessageIn) (context.Context, error) {
+	if b.ExternalContext == nil {
+		b.ExternalContext = GetContextFunc(func(_ *model.MessageIn) (context.Context, error) {
 			return context.Background(), nil
 		})
 	}
-	if b.menuPatterns != nil {
+	if len(b.menuPatterns) != 0 {
 		b.handlers[model.MenuCall] = newMenuHandler(b)
-		b.handlers[model.OpenMenu] = b.handlers[model.MenuCall]
 	}
 
 	updateConfig := tgbotapi.NewUpdate(0)
@@ -83,7 +87,7 @@ func (b *Bot) Start() {
 
 			_, err := b.Bot.Request(tgbotapi.CallbackConfig{CallbackQueryID: update.CallbackQuery.ID})
 			if err != nil {
-				return
+				logrus.Error(err)
 			}
 			b.handleMessage(&model.MessageIn{
 				Message: update.CallbackQuery.Message,
@@ -138,7 +142,7 @@ func (b *Bot) handleMessage(message *model.MessageIn) {
 	if handler == nil {
 		handler = b.chats[message.Chat.ID]
 		if handler == nil {
-			b.DefaultHandle(ctx, message)
+			b.tryHandleAsMenuCall(ctx, message)
 			return
 		}
 	}
@@ -146,8 +150,7 @@ func (b *Bot) handleMessage(message *model.MessageIn) {
 	messageOut = handler.Handle(ctx, message)
 	switch r := messageOut.(type) {
 	case *model.Callback:
-		r.Ctx = ctx
-		b.processCallback(r, message)
+		b.processCallback(ctx, r, message)
 	case *model.Reply:
 		return
 	case nil:
@@ -158,19 +161,33 @@ func (b *Bot) handleMessage(message *model.MessageIn) {
 
 }
 
-func (b *Bot) processCallback(callback *model.Callback, message *model.MessageIn) {
-	if callback.Process(message) {
-		err := callback.Send(b.Bot, message.Chat.ID)
-		if err != nil {
-			logrus.Errorf("Error handling callback %v", err)
+func (b *Bot) processCallback(ctx context.Context, c *model.Callback, message *model.MessageIn) {
+	switch c.Type {
+	case model.Callback_Type_Bad:
+		logrus.Errorf("Untyped callback for message %s", message.Text)
+		return
+	case model.Callback_Type_CallCommand:
+		message.Text = c.Command
+		message.Args = c.Args
+	case model.Callback_Type_OpenMenu:
+		if c.Menu != nil {
+			menu := c.Menu.GetPage(ctx, 0)
+			c.ReplyMarkup = menu.ToMarkup()
+			err := c.Send(b.Bot, message.Chat.ID)
+			if err != nil {
+				logrus.Errorf("Error handling callback %v", err)
+			}
+			return
 		}
-	} else {
-		b.handleMessage(message)
+		message.Text = model.MenuCall + " " + model.OpenMenu + " " + c.Command
+	case model.Callback_Type_TransitToMenu:
+		message.Text = model.MenuCall + " " + c.Command
 	}
 
+	b.handleMessage(message)
 }
 
-func (b *Bot) DefaultHandle(ctx context.Context, in *model.MessageIn) {
+func (b *Bot) tryHandleAsMenuCall(ctx context.Context, in *model.MessageIn) {
 	menuHandler := b.handlers[model.MenuCall]
 	messageOut := menuHandler.Handle(ctx, in)
 

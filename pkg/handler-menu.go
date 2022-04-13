@@ -2,11 +2,9 @@ package pkg
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	"github.com/AlexSkilled/go_tg/pkg/model"
-	"github.com/sirupsen/logrus"
 )
 
 type MenuHandler struct {
@@ -29,13 +27,11 @@ func newMenuHandler(bot *Bot) *MenuHandler {
 }
 
 func (m *MenuHandler) Handle(ctx context.Context, in *model.MessageIn) (out TgMessage) {
-	menu, ok := m.chatToMenu[in.Chat.ID]
-
 	switch in.Command {
 	case model.MenuCall:
 		return m.handleMenuCall(ctx, in)
 	case model.ChangePage:
-		if ok {
+		if menu, ok := m.chatToMenu[in.Chat.ID]; ok {
 			var page int
 			var err error
 
@@ -49,34 +45,45 @@ func (m *MenuHandler) Handle(ctx context.Context, in *model.MessageIn) (out TgMe
 			ik := menu.GetPage(ctx, page)
 			return model.EditMessageReply(&ik, in.MessageID)
 		}
-	case model.OpenMenu:
-		if len(in.Args) == 0 {
-			logrus.Error(fmt.Sprintf("Error when tried to open new menu. No menu name specified"))
-			return nil
+		return &model.MessageOut{
+			Text: "No active menu for changing page",
 		}
-		in.Command = in.Args[0]
-		return m.startMenu(ctx, in)
 	default:
 		return m.startMenu(ctx, in)
 	}
-
-	m.chatToMenu[in.Chat.ID] = menu
-	return
 }
 
 func (m *MenuHandler) startMenu(ctx context.Context, in *model.MessageIn) TgMessage {
-	if pattern, ok := m.patterns[in.Command]; ok {
-
+	if len(in.Args) == 0 {
+		return &model.MessageOut{
+			Text: "Expected name of menu, but got nothing: " + model.MenuCall + " " + model.OpenMenu + " *Empty_Menu_Name*",
+		}
+	}
+	if pattern, ok := m.patterns[in.Args[0]]; ok {
 		ik := pattern.GetPage(ctx, 0)
+
+		m.chatToMenu[in.Chat.ID] = pattern
+
 		return &model.MessageOut{
 			Text:          pattern.GetName(ctx),
 			InlineButtons: &ik,
 		}
 	}
-	return nil
+	return &model.MessageOut{
+		Text: "Couldn't find registered menu with name: " + in.Args[0],
+	}
 }
 
 func (m *MenuHandler) handleMenuCall(ctx context.Context, in *model.MessageIn) TgMessage {
+	if len(in.Args) == 0 {
+		return nil
+	}
+	in.Command = in.Args[0]
+	in.Args = in.Args[0:]
+	if in.Command == model.OpenMenu {
+		return m.startMenu(ctx, in)
+	}
+
 	if pattern, ok := m.patterns[in.Args[0]]; ok {
 		var page int
 		if len(in.Args) > 1 {

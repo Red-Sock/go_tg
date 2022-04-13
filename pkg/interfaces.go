@@ -19,7 +19,7 @@ type CommandHandler interface {
 	Dump(id int64)
 }
 
-type EnrichContext interface {
+type ExternalContext interface {
 	GetContext(in *model.MessageIn) (context.Context, error)
 }
 type GetContextFunc func(in *model.MessageIn) (context.Context, error)

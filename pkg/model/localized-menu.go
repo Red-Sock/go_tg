@@ -11,10 +11,12 @@ import (
 type LocalizedMenu struct {
 	menus   map[string]Menu
 	command string
+
+	prevMenu Menu
 }
 
 func (l *LocalizedMenu) GetPreviousMenu() Menu {
-	panic("implement me")
+	return l.prevMenu
 }
 
 func (l *LocalizedMenu) GetCallCommand() string {
@@ -58,6 +60,7 @@ func (l *LocalizedMenu) GetPage(ctx context.Context, page int) InlineKeyboard {
 type LocalizedMenuPatterns struct {
 	command          string
 	localeToPatterns map[string]SimpleMenuPattern
+	previous         MenuPattern
 }
 
 func NewLocalizedMenuPattern(command string) *LocalizedMenuPatterns {
@@ -102,6 +105,10 @@ func (l *LocalizedMenuPatterns) AddEntryPoint(command string) {
 		return
 	}
 	l.command = command
+}
+
+func (l *LocalizedMenuPatterns) AddPrevMenu(pattern MenuPattern) {
+	l.previous = pattern
 }
 
 func (l *LocalizedMenuPatterns) GetCallCommand() string {
