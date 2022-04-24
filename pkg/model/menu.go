@@ -16,6 +16,7 @@ type Menu interface {
 	GetCallCommand() (command string)
 	GetTransitionCommand() (command string)
 
+	SetPreviousMenu(menu Menu)
 	GetPreviousMenu() (menu Menu)
 }
 
@@ -25,7 +26,6 @@ type Menu interface {
 type MenuPattern interface {
 	GetCallCommand() string
 	GetTransitionCommand() string
-	AddPrevMenu(MenuPattern)
 
 	Compile() Menu
 }

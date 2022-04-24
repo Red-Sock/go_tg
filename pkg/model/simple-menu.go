@@ -38,6 +38,10 @@ func (m *SimpleMenu) GetPreviousMenu() Menu {
 	return m.previousMenu
 }
 
+func (m *SimpleMenu) SetPreviousMenu(menu Menu) {
+	m.previousMenu = menu
+}
+
 // SimpleMenuPattern - basic inline Keyboard menu
 // consists of buttons - Items (commands)
 type SimpleMenuPattern struct {
@@ -46,8 +50,6 @@ type SimpleMenuPattern struct {
 	Columns    int
 	EntryPoint string
 	keyboard   InlineKeyboard
-
-	previousMenu MenuPattern
 }
 
 func NewMenuPattern(name string) SimpleMenuPattern {
@@ -68,17 +70,6 @@ func (m *SimpleMenuPattern) AddButton(name, command string) {
 // [button3][button4]
 func (m *SimpleMenuPattern) AddStandAloneButton(text, value string) {
 	m.keyboard.AddStandAloneButton(text, value)
-}
-
-// AddButtonWithMenu - adds button with displayed name, that opens given menu
-func (m *SimpleMenuPattern) AddButtonWithMenu(name string, menu MenuPattern) {
-	menu.AddPrevMenu(m)
-	m.keyboard.AddButton(name, menu.GetCallCommand())
-}
-
-// AddPrevMenu - adds previous menu
-func (m *SimpleMenuPattern) AddPrevMenu(pattern MenuPattern) {
-	m.previousMenu = pattern
 }
 
 // AddEntryPoint - adds additional command to start menu

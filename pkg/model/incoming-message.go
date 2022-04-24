@@ -7,4 +7,12 @@ type MessageIn struct {
 	Args    []string
 
 	*tgbotapi.Message
+	m Message
+}
+
+type Message struct {
+}
+
+func (m *Message) Delete() {
+
 }

@@ -15,6 +15,10 @@ type LocalizedMenu struct {
 	prevMenu Menu
 }
 
+func (l *LocalizedMenu) SetPreviousMenu(menu Menu) {
+	l.prevMenu = menu
+}
+
 func (l *LocalizedMenu) GetPreviousMenu() Menu {
 	return l.prevMenu
 }

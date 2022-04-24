@@ -92,6 +92,7 @@ func (m *MenuHandler) handleMenuCall(ctx context.Context, in *model.MessageIn) T
 
 		ik := pattern.GetPage(ctx, page)
 		name := pattern.GetName(ctx)
+		pattern.SetPreviousMenu(m.chatToMenu[in.Chat.ID])
 		return &model.MessageEdit{
 			MessageId:     in.MessageID,
 			Text:          &name,

@@ -52,3 +52,7 @@ func (m *MultipleMessage) Send(bot *tgbotapi.BotAPI, _ int64) error {
 
 	return fmt.Errorf("%s", strings.Join(errors, "\n"))
 }
+
+type Instruction interface {
+	execute(bot *tgbotapi.BotAPI)
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/AlexSkilled/go_tg/pkg/model"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -25,6 +26,14 @@ type Bot struct {
 	separator string
 
 	menuPatterns []model.MenuPattern
+	qm           *quitManager
+}
+
+var instructionHandler <-chan Instruction
+
+type quitManager struct {
+	end chan struct{}
+	wg  *sync.WaitGroup
 }
 
 // NewBot Bot constructor
@@ -72,28 +81,69 @@ func (b *Bot) Start() {
 
 	updChan := b.Bot.GetUpdatesChan(updateConfig)
 
-	for update := range updChan {
-		switch {
-		case update.Message != nil:
+	quit := make(chan struct{})
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
 
-			b.handleMessage(&model.MessageIn{
-				Message: update.Message,
-			})
-			break
-		case update.CallbackQuery != nil:
-			message := update.CallbackQuery.Message
-			message.Text = update.CallbackQuery.Data
-			message.From = update.CallbackQuery.From
+	b.qm = &quitManager{
+		quit,
+		wg,
+	}
 
-			_, err := b.Bot.Request(tgbotapi.CallbackConfig{CallbackQueryID: update.CallbackQuery.ID})
-			if err != nil {
-				logrus.Error(err)
+	outGoingMessages := make(chan Instruction)
+
+	go b.handleInComing(updChan, b.qm)
+	go b.handleOutgoing(outGoingMessages, b.qm)
+
+}
+
+func (b *Bot) Stop() {
+	close(b.qm.end)
+	b.qm.wg.Wait()
+}
+
+func (b *Bot) handleInComing(updChan tgbotapi.UpdatesChannel, qm *quitManager) {
+	for {
+		select {
+		case update := <-updChan:
+			switch {
+			case update.Message != nil:
+
+				b.handleMessage(&model.MessageIn{
+					Message: update.Message,
+				})
+				break
+			case update.CallbackQuery != nil:
+				message := update.CallbackQuery.Message
+				message.Text = update.CallbackQuery.Data
+				message.From = update.CallbackQuery.From
+
+				_, err := b.Bot.Request(tgbotapi.CallbackConfig{CallbackQueryID: update.CallbackQuery.ID})
+				if err != nil {
+					logrus.Error(err)
+				}
+				b.handleMessage(&model.MessageIn{
+					Message: update.CallbackQuery.Message,
+				})
+				break
 			}
-			b.handleMessage(&model.MessageIn{
-				Message: update.CallbackQuery.Message,
-			})
-			break
+		case <-qm.end:
+			logrus.Println("Gracefully shutted down incoming handler")
+			qm.wg.Done()
+			return
 		}
+
+	}
+}
+
+func (b *Bot) handleOutgoing(out <-chan Instruction, qm *quitManager) {
+	select {
+	case inst := <-out:
+		inst.execute(b.Bot)
+	case <-qm.end:
+		logrus.Println("Gracefully shutted down outgoing handler")
+		qm.wg.Done()
+		return
 	}
 }
 
