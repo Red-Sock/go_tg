@@ -27,6 +27,7 @@ type Bot struct {
 
 	menuPatterns []model.MenuPattern
 	qm           *quitManager
+	outMessage   chan Instruction
 }
 
 var instructionHandler <-chan Instruction
@@ -90,10 +91,10 @@ func (b *Bot) Start() {
 		wg,
 	}
 
-	outGoingMessages := make(chan Instruction)
+	b.outMessage = make(chan Instruction)
 
 	go b.handleInComing(updChan, b.qm)
-	go b.handleOutgoing(outGoingMessages, b.qm)
+	go b.handleOutgoing(b.qm)
 
 }
 
@@ -136,10 +137,10 @@ func (b *Bot) handleInComing(updChan tgbotapi.UpdatesChannel, qm *quitManager) {
 	}
 }
 
-func (b *Bot) handleOutgoing(out <-chan Instruction, qm *quitManager) {
+func (b *Bot) handleOutgoing(qm *quitManager) {
 	select {
-	case inst := <-out:
-		inst.execute(b.Bot)
+	case inst := <-b.outMessage:
+		inst.Execute(b.Bot)
 	case <-qm.end:
 		logrus.Println("Gracefully shutted down outgoing handler")
 		qm.wg.Done()
@@ -186,18 +187,18 @@ func (b *Bot) handleMessage(message *model.MessageIn) {
 		// TODO
 		return
 	}
+	message.Ctx = ctx
 
 	var messageOut TgMessage
 
 	if handler == nil {
 		handler = b.chats[message.Chat.ID]
 		if handler == nil {
-			b.tryHandleAsMenuCall(ctx, message)
+			b.tryHandleAsMenuCall(message)
 			return
 		}
 	}
-
-	messageOut = handler.Handle(ctx, message)
+	handler.Handle(message, &Responser{c: b.outMessage, chatId: message.Chat.ID})
 	switch r := messageOut.(type) {
 	case *model.Callback:
 		b.processCallback(ctx, r, message)
@@ -237,14 +238,7 @@ func (b *Bot) processCallback(ctx context.Context, c *model.Callback, message *m
 	b.handleMessage(message)
 }
 
-func (b *Bot) tryHandleAsMenuCall(ctx context.Context, in *model.MessageIn) {
+func (b *Bot) tryHandleAsMenuCall(in *model.MessageIn) {
 	menuHandler := b.handlers[model.MenuCall]
-	messageOut := menuHandler.Handle(ctx, in)
-
-	if messageOut != nil {
-		b.sendResponse(in, messageOut)
-		return
-	}
-
-	b.sendResponse(in, &model.MessageOut{Text: fmt.Sprintf("Не знаю что ответить на \"%s\"", in.Text)})
+	menuHandler.Handle(in, &Responser{chatId: in.Chat.ID, c: b.outMessage})
 }

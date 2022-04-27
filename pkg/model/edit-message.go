@@ -4,8 +4,9 @@ import tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
 type MessageEdit struct {
 	MessageId int
+	ChatId    int64
+	Text      *string
 
-	Text          *string
 	ReplyKeyboard *InlineKeyboard
 }
 
@@ -36,4 +37,14 @@ func (m *MessageEdit) Send(bot *tgbotapi.BotAPI, chatId int64) (err error) {
 	m.MessageId = msg.MessageID
 
 	return nil
+}
+
+func (m *MessageEdit) Execute(bot *tgbotapi.BotAPI) {
+	m.Send(bot, m.ChatId)
+}
+
+func (m *MessageEdit) SetChatIdIfZero(i int64) {
+	if m.ChatId == 0 {
+		m.ChatId = i
+	}
 }

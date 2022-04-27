@@ -1,7 +1,6 @@
 package pkg
 
 import (
-	"context"
 	"strconv"
 
 	"github.com/AlexSkilled/go_tg/pkg/model"
@@ -26,10 +25,10 @@ func newMenuHandler(bot *Bot) *MenuHandler {
 	return mh
 }
 
-func (m *MenuHandler) Handle(ctx context.Context, in *model.MessageIn) (out TgMessage) {
+func (m *MenuHandler) Handle(in *model.MessageIn, out Sender) {
 	switch in.Command {
 	case model.MenuCall:
-		return m.handleMenuCall(ctx, in)
+		out.Send(m.handleMenuCall(in))
 	case model.ChangePage:
 		if menu, ok := m.chatToMenu[in.Chat.ID]; ok {
 			var page int
@@ -42,30 +41,30 @@ func (m *MenuHandler) Handle(ctx context.Context, in *model.MessageIn) (out TgMe
 				}
 			}
 
-			ik := menu.GetPage(ctx, page)
-			return model.EditMessageReply(&ik, in.MessageID)
+			ik := menu.GetPage(in.Ctx, page)
+			model.EditMessageReply(&ik, in.MessageID)
 		}
-		return &model.MessageOut{
+		out.Send(&model.MessageOut{
 			Text: "No active menu for changing page",
-		}
+		})
 	default:
-		return m.startMenu(ctx, in)
+		out.Send(m.startMenu(in))
 	}
 }
 
-func (m *MenuHandler) startMenu(ctx context.Context, in *model.MessageIn) TgMessage {
+func (m *MenuHandler) startMenu(in *model.MessageIn) Instruction {
 	if len(in.Args) == 0 {
 		return &model.MessageOut{
 			Text: "Expected name of menu, but got nothing: " + model.MenuCall + " " + model.OpenMenu + " *Empty_Menu_Name*",
 		}
 	}
 	if pattern, ok := m.patterns[in.Args[0]]; ok {
-		ik := pattern.GetPage(ctx, 0)
+		ik := pattern.GetPage(in.Ctx, 0)
 
 		m.chatToMenu[in.Chat.ID] = pattern
 
 		return &model.MessageOut{
-			Text:          pattern.GetName(ctx),
+			Text:          pattern.GetName(in.Ctx),
 			InlineButtons: &ik,
 		}
 	}
@@ -74,14 +73,15 @@ func (m *MenuHandler) startMenu(ctx context.Context, in *model.MessageIn) TgMess
 	}
 }
 
-func (m *MenuHandler) handleMenuCall(ctx context.Context, in *model.MessageIn) TgMessage {
+func (m *MenuHandler) handleMenuCall(in *model.MessageIn) Instruction {
 	if len(in.Args) == 0 {
 		return nil
 	}
 	in.Command = in.Args[0]
 	in.Args = in.Args[0:]
 	if in.Command == model.OpenMenu {
-		return m.startMenu(ctx, in)
+		return m.startMenu(in)
+
 	}
 
 	if pattern, ok := m.patterns[in.Args[0]]; ok {
@@ -90,8 +90,8 @@ func (m *MenuHandler) handleMenuCall(ctx context.Context, in *model.MessageIn) T
 			page, _ = strconv.Atoi(in.Args[1])
 		}
 
-		ik := pattern.GetPage(ctx, page)
-		name := pattern.GetName(ctx)
+		ik := pattern.GetPage(in.Ctx, page)
+		name := pattern.GetName(in.Ctx)
 		pattern.SetPreviousMenu(m.chatToMenu[in.Chat.ID])
 		return &model.MessageEdit{
 			MessageId:     in.MessageID,

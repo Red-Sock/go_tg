@@ -15,7 +15,7 @@ import (
 // Use it When you have to work with dynamic data, such as
 // database, other service and etc
 type CommandHandler interface {
-	Handle(ctx context.Context, in *model.MessageIn) (out TgMessage)
+	Handle(in *model.MessageIn, out Sender)
 	Dump(id int64)
 }
 
@@ -53,6 +53,11 @@ func (m *MultipleMessage) Send(bot *tgbotapi.BotAPI, _ int64) error {
 	return fmt.Errorf("%s", strings.Join(errors, "\n"))
 }
 
+type Sender interface {
+	Send(Instruction)
+}
+
 type Instruction interface {
-	execute(bot *tgbotapi.BotAPI)
+	Execute(bot *tgbotapi.BotAPI)
+	SetChatIdIfZero(c int64)
 }

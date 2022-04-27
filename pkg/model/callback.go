@@ -19,7 +19,8 @@ type Callback struct {
 	Type    CallbackType
 	Menu    Menu
 
-	Text string
+	Text   string
+	ChatId int64
 
 	ReplyMarkup *tgbotapi.InlineKeyboardMarkup
 }
@@ -32,10 +33,24 @@ func (c *Callback) Send(api *tgbotapi.BotAPI, chatId int64) (err error) {
 		mc = tgbotapi.NewMessage(chatId, c.Text)
 	}
 
-	mc.ReplyMarkup = c.ReplyMarkup
+	if c.Menu != nil {
+		mc.ReplyMarkup = c.Menu.GetPage()
+	} else if c.ReplyMarkup != nil {
+		mc.ReplyMarkup = c.ReplyMarkup
+	}
 
 	if len(mc.Text) != 0 {
 		_, err = api.Send(mc)
 	}
 	return err
+}
+
+func (c *Callback) Execute(api *tgbotapi.BotAPI) {
+	c.Send(api, c.ChatId)
+}
+
+func (c *Callback) SetChatIdIfZero(i int64) {
+	if c.ChatId == 0 {
+		c.ChatId = i
+	}
 }
