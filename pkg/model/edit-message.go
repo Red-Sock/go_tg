@@ -7,7 +7,7 @@ type MessageEdit struct {
 	ChatId    int64
 	Text      *string
 
-	ReplyKeyboard *InlineKeyboard
+	ReplyKeyboard *tgbotapi.InlineKeyboardMarkup
 }
 
 func EditMessageText(text string, messageId int) *MessageEdit {
@@ -17,7 +17,7 @@ func EditMessageText(text string, messageId int) *MessageEdit {
 	}
 }
 
-func EditMessageReply(keyboard *InlineKeyboard, messageId int) *MessageEdit {
+func EditMessageReply(keyboard *tgbotapi.InlineKeyboardMarkup, messageId int) *MessageEdit {
 	return &MessageEdit{
 		MessageId:     messageId,
 		ReplyKeyboard: keyboard,
@@ -31,7 +31,7 @@ func (m *MessageEdit) Send(bot *tgbotapi.BotAPI, chatId int64) (err error) {
 	}
 
 	if m.ReplyKeyboard != nil {
-		msg, err = bot.Send(tgbotapi.NewEditMessageReplyMarkup(chatId, m.MessageId, *m.ReplyKeyboard.ToMarkup()))
+		msg, err = bot.Send(tgbotapi.NewEditMessageReplyMarkup(chatId, m.MessageId, *m.ReplyKeyboard))
 	}
 
 	m.MessageId = msg.MessageID

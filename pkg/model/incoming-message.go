@@ -10,6 +10,7 @@ type MessageIn struct {
 	Command string
 	Args    []string
 	Ctx     context.Context
+
 	*tgbotapi.Message
 	ChatMsg
 }

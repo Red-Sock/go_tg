@@ -25,9 +25,10 @@ type Bot struct {
 	ExternalContext
 	separator string
 
-	menuPatterns []model.MenuPattern
-	qm           *quitManager
-	outMessage   chan Instruction
+	menuPatterns    []model.Menu
+	locMenuPatterns []model.LocalizedMenu
+	qm              *quitManager
+	outMessage      chan Instruction
 }
 
 var instructionHandler <-chan Instruction
@@ -63,8 +64,12 @@ func (b *Bot) AddCommandHandler(handler CommandHandler, command string) {
 	b.handlers[command] = handler
 }
 
-func (b *Bot) AddMenu(pattern model.MenuPattern) {
+func (b *Bot) AddMenu(pattern model.Menu) {
 	b.menuPatterns = append(b.menuPatterns, pattern)
+}
+
+func (b *Bot) AddLocalizedMenu(locMenu model.LocalizedMenu) {
+	b.locMenuPatterns = append(b.locMenuPatterns, locMenu)
 }
 
 func (b *Bot) Start() {
@@ -74,7 +79,7 @@ func (b *Bot) Start() {
 		})
 	}
 	if len(b.menuPatterns) != 0 {
-		b.handlers[model.MenuCall] = newMenuHandler(b)
+		b.handlers[model.MenuCall] = newMenuHandler(b.menuPatterns)
 	}
 
 	updateConfig := tgbotapi.NewUpdate(0)
@@ -187,6 +192,7 @@ func (b *Bot) handleMessage(message *model.MessageIn) {
 		// TODO
 		return
 	}
+
 	message.Ctx = ctx
 
 	var messageOut TgMessage
@@ -222,8 +228,8 @@ func (b *Bot) processCallback(ctx context.Context, c *model.Callback, message *m
 		message.Args = c.Args
 	case model.Callback_Type_OpenMenu:
 		if c.Menu != nil {
-			menu := c.Menu.GetPage(ctx, 0)
-			c.ReplyMarkup = menu.ToMarkup()
+			menu := c.Menu.GetPage()
+			c.ReplyMarkup = menu
 			err := c.Send(b.Bot, message.Chat.ID)
 			if err != nil {
 				logrus.Errorf("Error handling callback %v", err)

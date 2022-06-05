@@ -8,7 +8,7 @@ type MessageOut struct {
 	MessageId     int
 	ChatId        int64
 	Text          string
-	InlineButtons *InlineKeyboard
+	InlineButtons *tgbotapi.InlineKeyboardMarkup
 	Keyboard      *Keyboard
 }
 
@@ -20,7 +20,7 @@ func (m *MessageOut) Send(bot *tgbotapi.BotAPI, chatId int64) error {
 	message := tgbotapi.NewMessage(chatId, m.Text)
 
 	if m.InlineButtons != nil {
-		message.BaseChat.ReplyMarkup = m.InlineButtons.ToMarkup()
+		message.BaseChat.ReplyMarkup = m.InlineButtons
 	}
 	if m.Keyboard != nil {
 		message.BaseChat.ReplyMarkup = m.Keyboard.toMarkup()

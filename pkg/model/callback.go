@@ -25,7 +25,7 @@ type Callback struct {
 	ReplyMarkup *tgbotapi.InlineKeyboardMarkup
 }
 
-// Send sends a message back to user if nessesery
+// Send sends a message back to user if necessary
 func (c *Callback) Send(api *tgbotapi.BotAPI, chatId int64) (err error) {
 	var mc tgbotapi.MessageConfig
 
