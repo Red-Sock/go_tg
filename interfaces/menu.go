@@ -1,4 +1,4 @@
-package model
+package interfaces
 
 import tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
@@ -10,24 +10,14 @@ import tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 // GetTransitionCommand - returns command that (`/command format`) that replaces currently opened menu with this one
 // GetPreviousMenu - returns previously opened menu
 type Menu interface {
+	Instruction
+
 	GetName() (name string)
 	GetPage(number ...int) (menu *tgbotapi.InlineKeyboardMarkup)
 	GetCallCommand() (command string)
 
 	SetPreviousMenu(menu Menu)
 	GetPreviousMenu() (menu Menu)
-}
 
-// MenuPattern
-// GetCallCommand - create new menu
-// GetTransitionCommand - replaces current menu onto menu from command
-type MenuPattern interface {
-	GetCallCommand() string
-	GetTransitionCommand() string
-
-	Compile() Menu
-}
-
-func NewMenu(pattern MenuPattern) Menu {
-	return pattern.Compile()
+	GetCopy() Menu
 }

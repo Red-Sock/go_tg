@@ -1,8 +1,16 @@
-package model
+package menu
 
-import tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+import (
+	"github.com/AlexSkilled/go_tg/interfaces"
+	"github.com/AlexSkilled/go_tg/model"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+)
 
+// SimpleMenu is a basic menu with chat buttons
+// If both ChatId And MessageId specified - replaces message with this one
 type SimpleMenu struct {
+	ChatId        int64
+	MessageId     int64
 	command       string
 	displayedName string
 
@@ -13,15 +21,21 @@ type SimpleMenu struct {
 	pagesPatterns []InlineKeyboard
 	pages         []*tgbotapi.InlineKeyboardMarkup
 
-	previousMenu Menu
+	previousMenu interfaces.Menu
 }
 
-func NewSimpleMenu(command, name string) *SimpleMenu {
+func (m *SimpleMenu) GetCopy() interfaces.Menu {
+	mCopy := *m
+	return &mCopy
+}
+
+func NewSimple(command, name string) *SimpleMenu {
 	return &SimpleMenu{
 		command:        command,
 		displayedName:  name,
-		columnsPerPage: ColumnsDefaultAmount,
-		rowsPerPage:    RowsDefaultAmount,
+		columnsPerPage: model.ColumnsDefaultAmount,
+		rowsPerPage:    model.RowsDefaultAmount,
+		pages:          make([]*tgbotapi.InlineKeyboardMarkup, 1),
 	}
 }
 
@@ -29,10 +43,7 @@ func (m *SimpleMenu) GetName() (name string) {
 	return m.displayedName
 }
 
-func (m *SimpleMenu) GetCallCommand() (command string) {
-	return MenuCall + " " + m.command
-}
-
+// GetPage returns compiled page if nessesary
 func (m *SimpleMenu) GetPage(numbers ...int) (menu *tgbotapi.InlineKeyboardMarkup) {
 	page := 0
 	if len(numbers) != 0 {
@@ -41,11 +52,16 @@ func (m *SimpleMenu) GetPage(numbers ...int) (menu *tgbotapi.InlineKeyboardMarku
 	return m.pages[page]
 }
 
-func (m *SimpleMenu) SetPreviousMenu(menu Menu) {
-	m.previousMenu = menu
+func (m *SimpleMenu) GetCallCommand() string {
+	return m.command
 }
 
-func (m *SimpleMenu) GetPreviousMenu() (menu Menu) {
+func (m *SimpleMenu) SetPreviousMenu(menu interfaces.Menu) {
+	m.previousMenu = menu
+	m.rebuild()
+}
+
+func (m *SimpleMenu) GetPreviousMenu() (menu interfaces.Menu) {
 	return m.previousMenu
 }
 
@@ -65,7 +81,6 @@ func (m *SimpleMenu) SetRowsAmount(rows uint8) {
 // Careful!! On every call rebuilds whole menu keyboard
 // More preferred way to create menu is to use AddPage method
 func (m *SimpleMenu) AddButton(name, command string) {
-
 	m.buttons.AddButton(name, command)
 	m.rebuild()
 }
@@ -106,5 +121,50 @@ func (m *SimpleMenu) rebuild() {
 			menu = append(menu, InlineKeyboard{})
 		}
 	}
+	if m.previousMenu != nil {
+		menu[0].btns = append(menu[0].btns, button{
+			Text:         "<<",
+			Value:        "/back",
+			IsStandAlone: true,
+		})
+	}
+
 	m.pagesPatterns = menu
+	m.pages = make([]*tgbotapi.InlineKeyboardMarkup, 0, len(menu))
+
+	for _, item := range m.pagesPatterns {
+		item.Columns = m.columnsPerPage
+		item.Rows = m.rowsPerPage
+		m.pages = append(m.pages, item.ToMarkup())
+	}
+}
+
+func (m *SimpleMenu) SetChatIdIfZero(c int64) {
+	if m.ChatId == 0 {
+		m.ChatId = c
+	}
+}
+
+func (m *SimpleMenu) GetMessage() tgbotapi.Chattable {
+	if m.MessageId != 0 {
+		return tgbotapi.NewEditMessageTextAndMarkup(m.ChatId, int(m.MessageId), m.displayedName, *m.pages[0])
+	}
+	message := tgbotapi.NewMessage(m.ChatId, m.displayedName)
+
+	message.DisableWebPagePreview = true
+	message.ReplyMarkup = m.pages[0]
+
+	return message
+}
+
+func (m *SimpleMenu) GetChatId() int64 {
+	return m.ChatId
+}
+
+func (m *SimpleMenu) SetMessageId(id int64) {
+	m.MessageId = id
+}
+
+func (m *SimpleMenu) GetMessageId() int64 {
+	return m.MessageId
 }

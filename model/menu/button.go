@@ -1,6 +1,9 @@
-package model
+package menu
 
-import tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+import (
+	"github.com/AlexSkilled/go_tg/model"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+)
 
 type button struct {
 	Text         string
@@ -11,8 +14,8 @@ type button struct {
 type InlineKeyboard struct {
 	btns []button
 
-	Columns int
-	Rows    int
+	Columns uint8
+	Rows    uint8
 }
 
 func (b *InlineKeyboard) AddButton(text, value string) {
@@ -32,40 +35,42 @@ func (b *InlineKeyboard) AddStandAloneButton(text, value string) {
 
 func (b *InlineKeyboard) ToMarkup() (markup *tgbotapi.InlineKeyboardMarkup) {
 	if b.Columns == 0 {
-		b.Columns = ColumnsDefaultAmount
+		b.Columns = model.ColumnsDefaultAmount
 	}
 
 	if b.Rows == 0 {
-		b.Rows = RowsDefaultAmount
+		b.Rows = model.RowsDefaultAmount
 	}
 
-	finalButtonsSet := make([][]tgbotapi.InlineKeyboardButton, 0, b.Rows)
-	cRaw := 0
-	cCol := 0
+	rows := make([][]tgbotapi.InlineKeyboardButton, 1, b.Rows)
+
+	var cRaw, cCol uint8
+
 	processedButtons := 0
 	for _, btn := range b.btns {
 		btnMark := tgbotapi.NewInlineKeyboardButtonData(btn.Text, btn.Value)
 
 		if btn.IsStandAlone {
-			finalButtonsSet = append(finalButtonsSet, []tgbotapi.InlineKeyboardButton{btnMark})
+			rows = append(rows, []tgbotapi.InlineKeyboardButton{btnMark})
 			cRaw++
+			continue
 		}
 
 		if cCol >= b.Columns {
-			finalButtonsSet = append(finalButtonsSet, []tgbotapi.InlineKeyboardButton{btnMark})
+			rows = append(rows, []tgbotapi.InlineKeyboardButton{btnMark})
 			cRaw++
 			cCol = 0
 		} else {
-			finalButtonsSet[cRaw] = append(finalButtonsSet[cRaw], btnMark)
+			rows[cRaw] = append(rows[cRaw], btnMark)
 		}
 
 		processedButtons++
 
 		if cRaw >= b.Rows {
-			return &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: finalButtonsSet}
+			return &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: rows}
 		}
 	}
-	return &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: finalButtonsSet}
+	return &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
 type Keyboard struct {
