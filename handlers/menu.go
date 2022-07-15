@@ -103,7 +103,6 @@ func (m *MenuHandler) startMenu(in *model.MessageIn, mStorage map[string]interfa
 			pattern = pattern.GetCopy()
 			pattern.SetMessageId(msg.GetMessageId())
 			pattern.SetPreviousMenu(msg)
-			m.chatToMenu[in.Chat.ID] = pattern
 		} else {
 			pattern.SetMessageId(int64(in.MessageID))
 		}
