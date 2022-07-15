@@ -1,6 +1,8 @@
 package interfaces
 
-import "github.com/AlexSkilled/go_tg/model"
+import (
+	"github.com/AlexSkilled/go_tg/model"
+)
 
 // CommandHandler - structure that contains logic for
 // handling commands that starts with "/" symbol

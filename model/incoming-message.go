@@ -12,16 +12,12 @@ type MessageIn struct {
 	Ctx     context.Context
 
 	*tgbotapi.Message
-	ChatMsg
 }
 
-type ChatMsg struct {
+func (m *MessageIn) Delete() {
+	//TODO
 }
 
-func (m *ChatMsg) Delete() {
-	// TODO
-}
-
-func (m *ChatMsg) Response(out MessageOut) {
-
+func (m *MessageIn) Response(out string) {
+	//internal.Send(NewReplyToMessage(out, m.Chat.ID, int64(m.MessageID)))
 }

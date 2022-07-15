@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/AlexSkilled/go_tg/interfaces"
@@ -8,15 +9,28 @@ import (
 	"github.com/AlexSkilled/go_tg/model/menu"
 )
 
+const (
+	NoMenuError = "Couldn't find registered menu with name: "
+	defaultLang = "no_language_specified"
+)
+
 type MenuHandler struct {
-	simplePatterns    map[string]interfaces.Menu            // command to menu
 	localizedPatterns map[string]map[string]interfaces.Menu // locale -> command -> menu
 	chatToMenu        map[int64]interfaces.Menu             // chat id to menu
+
+	customMenus map[int64]map[string]interfaces.Menu // userID to command to menu
+
+	// Retry is a function that retries to handler message.
+	// Exists for one purpose only - in case if (all AND conditions)
+	// 1. backend has returned a custom created menu
+	// 2. user has felt into sub menu
+	// 3. user wants to return from sub menu to custom created menu
+	// framework retries to call backend same command specified for parent menu
+	Retry func(message *model.MessageIn, c chan<- interfaces.Instruction)
 }
 
 func NewMenuHandler() *MenuHandler {
 	mh := MenuHandler{
-		simplePatterns:    map[string]interfaces.Menu{},
 		chatToMenu:        map[int64]interfaces.Menu{},
 		localizedPatterns: map[string]map[string]interfaces.Menu{},
 	}
@@ -25,11 +39,11 @@ func NewMenuHandler() *MenuHandler {
 }
 
 func (m *MenuHandler) AddSimpleMenu(item interfaces.Menu) {
-	_, ok := m.simplePatterns[item.GetCallCommand()]
+	_, ok := m.localizedPatterns[defaultLang][item.GetCallCommand()]
 	if ok {
 		panic(fmt.Sprintf("Same menu for command %s", item.GetCallCommand()))
 	}
-	m.simplePatterns[item.GetCallCommand()] = item
+	m.localizedPatterns[defaultLang][item.GetCallCommand()] = item
 }
 
 func (m *MenuHandler) AddLocalizedMenu(item menu.LocalizedMenu) {
@@ -46,16 +60,7 @@ func (m *MenuHandler) AddLocalizedMenu(item menu.LocalizedMenu) {
 }
 
 func (m *MenuHandler) Handle(in *model.MessageIn, out interfaces.Sender) {
-	var menuStorage map[string]interfaces.Menu
-	var ok bool
-
-	locale, ok := in.Ctx.Value(model.LocaleContextKey).(string)
-	if ok {
-		menuStorage, ok = m.localizedPatterns[locale]
-	}
-	if !ok {
-		menuStorage = m.simplePatterns
-	}
+	menuStorage := m.getMenuStorage(in.Ctx)
 
 	switch in.Command {
 	case menu.MenuCall:
@@ -64,29 +69,28 @@ func (m *MenuHandler) Handle(in *model.MessageIn, out interfaces.Sender) {
 		if currentMenu, ok := m.chatToMenu[in.Chat.ID]; ok {
 			prev := currentMenu.GetPreviousMenu()
 			if prev == nil {
-				out.Send(&model.MessageOut{Text: "Nowhere to return!"})
+				out.Send(model.NewMessage("Nowhere to return!"))
 				return
 			}
-			out.Send(prev)
+			ms := m.getMenuStorage(in.Ctx)
+
+			newPrev := ms[prev.GetCallCommand()]
+			if newPrev == nil {
+				in.Text = prev.GetCallCommand()
+				c := make(chan interfaces.Instruction)
+				go m.Retry(in, c)
+				inst := <-c
+
+				var ok bool
+				if newPrev, ok = inst.(interfaces.Menu); !ok {
+					return
+				}
+			}
+			newPrev.SetMessageId(prev.GetMessageId())
+			newPrev.SetChatIdIfZero(prev.GetChatId())
+			newPrev.SetPreviousMenu(prev.GetPreviousMenu())
+			out.Send(newPrev)
 		}
-	//case menu.ChangePage:
-	//	if menu, ok := m.chatToMenu[in.Chat.ID]; ok {
-	//		var page int
-	//		var err error
-	//
-	//		if len(in.Args) > 0 {
-	//			page, err = strconv.Atoi(in.Args[0])
-	//			if err != nil {
-	//				page = 0
-	//			}
-	//		}
-	//
-	//		ik := menu.GetPage(page)
-	//		model.EditMessageReply(ik, in.MessageID)
-	//	}
-	//	out.Send(&model.MessageOut{
-	//		Text: "No active menu for changing page",
-	//	})
 	default:
 		out.Send(m.startMenu(in, menuStorage))
 	}
@@ -107,9 +111,7 @@ func (m *MenuHandler) startMenu(in *model.MessageIn, mStorage map[string]interfa
 
 		return pattern
 	}
-	return &model.MessageOut{
-		Text: "Couldn't find registered menu with name: " + in.Text,
-	}
+	return model.NewMessage(NoMenuError + in.Text)
 }
 
 func (m *MenuHandler) handleMenuCall(in *model.MessageIn, mStorage map[string]interfaces.Menu) interfaces.Instruction {
@@ -137,10 +139,41 @@ func (m *MenuHandler) handleMenuCall(in *model.MessageIn, mStorage map[string]in
 	return nil
 }
 
+func (m *MenuHandler) getMenuStorage(ctx context.Context) (menuStorage map[string]interfaces.Menu) {
+	var ok bool
+
+	locale, ok := ctx.Value(model.LocaleContextKey).(string)
+	if !ok {
+		locale = defaultLang
+	}
+	return m.localizedPatterns[locale]
+}
+
 func (m *MenuHandler) Dump(id int64) {
 	delete(m.chatToMenu, id)
 }
 
 func (m *MenuHandler) AttachMenu(chatId int64, menu interfaces.Menu) {
 	m.chatToMenu[chatId] = menu
+}
+
+func (m *MenuHandler) ReattachMenu(req *model.RerenderMenu) interfaces.Menu {
+	currentMenu := m.chatToMenu[req.ChatId]
+	if currentMenu == nil {
+		return nil
+	}
+	newMenu := m.getMenuStorage(req.Ctx)[currentMenu.GetCallCommand()]
+	newMenu.SetPreviousMenu(currentMenu.GetPreviousMenu())
+	newMenu.SetMessageId(req.MessageId)
+	m.chatToMenu[req.ChatId] = newMenu
+	return newMenu
+}
+
+func (m *MenuHandler) CanHandle(in *model.MessageIn) bool {
+	// Can handler if there is a chat with menu
+	if _, ok := m.chatToMenu[in.Chat.ID]; ok {
+		return true
+	}
+
+	return false
 }

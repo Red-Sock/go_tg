@@ -8,6 +8,7 @@ import (
 
 	"github.com/AlexSkilled/go_tg/handlers"
 	"github.com/AlexSkilled/go_tg/interfaces"
+	"github.com/AlexSkilled/go_tg/internal"
 	"github.com/AlexSkilled/go_tg/model"
 	"github.com/AlexSkilled/go_tg/model/menu"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -24,7 +25,7 @@ import (
 type Bot struct {
 	Bot *tgbotapi.BotAPI
 
-	chats    map[int64]interfaces.CommandHandler
+	chats    map[int64]chatHandler
 	handlers map[string]interfaces.CommandHandler
 
 	interfaces.ExternalContext
@@ -37,8 +38,6 @@ type Bot struct {
 	qm         *quitManager
 	outMessage chan interfaces.Instruction
 }
-
-var instructionHandler <-chan interfaces.Instruction
 
 type quitManager struct {
 	end chan struct{}
@@ -54,7 +53,7 @@ func NewBot(token string) *Bot {
 
 	return &Bot{
 		Bot:         bot,
-		chats:       make(map[int64]interfaces.CommandHandler),
+		chats:       make(map[int64]chatHandler),
 		handlers:    make(map[string]interfaces.CommandHandler),
 		menuHandler: handlers.NewMenuHandler(),
 		separator:   " ",
@@ -88,7 +87,9 @@ func (b *Bot) Start() {
 		})
 	}
 	// menu handler at menu.MenuCall
+	b.menuHandler.Retry = b.handleMessage
 	b.handlers[menu.MenuCall] = b.menuHandler
+	b.handlers[menu.Back] = b.menuHandler
 
 	// Start
 	updateConfig := tgbotapi.NewUpdate(0)
@@ -106,6 +107,7 @@ func (b *Bot) Start() {
 	}
 
 	b.outMessage = make(chan interfaces.Instruction)
+	internal.SetSender(b.outMessage)
 
 	go b.handleInComing(updChan, b.qm)
 	go b.handleOutgoing(b.qm)
@@ -126,7 +128,7 @@ func (b *Bot) handleInComing(updChan tgbotapi.UpdatesChannel, qm *quitManager) {
 
 				b.handleMessage(&model.MessageIn{
 					Message: update.Message,
-				})
+				}, b.outMessage)
 				break
 			case update.CallbackQuery != nil:
 				message := update.CallbackQuery.Message
@@ -139,7 +141,7 @@ func (b *Bot) handleInComing(updChan tgbotapi.UpdatesChannel, qm *quitManager) {
 				}
 				b.handleMessage(&model.MessageIn{
 					Message: update.CallbackQuery.Message,
-				})
+				}, b.outMessage)
 				break
 			}
 		case <-qm.end:
@@ -159,7 +161,13 @@ func (b *Bot) handleOutgoing(qm *quitManager) {
 			switch t := inst.(type) {
 			case interfaces.Menu:
 				b.menuHandler.AttachMenu(inst.GetChatId(), t)
-				delete(b.chats, inst.GetChatId())
+			case *model.RerenderMenu:
+				inst = b.menuHandler.ReattachMenu(t)
+				if inst == nil {
+					continue
+				}
+				inst.SetMessageId(t.MessageId)
+				inst.SetChatIdIfZero(t.ChatId)
 			}
 
 			sendMsg, err := b.Bot.Send(inst.GetMessage())
@@ -178,57 +186,57 @@ func (b *Bot) handleOutgoing(qm *quitManager) {
 
 }
 
-func (b *Bot) handleMessage(message *model.MessageIn) {
+func (b *Bot) handleMessage(message *model.MessageIn, outMessage chan<- interfaces.Instruction) {
+	resp := &Responser{c: outMessage, chatId: message.Chat.ID}
 
-	var handler interfaces.CommandHandler
+	handler := b.chooseHandler(message)
 
-	resp := &Responser{c: b.outMessage, chatId: message.Chat.ID}
-
-	if strings.HasPrefix(message.Text, "/") {
-		args := strings.Split(message.Text, b.separator)
-		message.Command = args[0]
-		if len(args) > 1 {
-			message.Args = args[1:]
-		}
-		handler = b.chats[message.Chat.ID]
-		if handler != nil {
-			handler.Dump(message.Chat.ID)
-			delete(b.chats, message.Chat.ID)
-		}
-		handler = b.handlers[message.Command]
-
-		b.chats[message.Chat.ID] = handler
+	if handler == nil {
+		msg := "Couldn't handle " + message.Command + " command"
+		logrus.Error(msg)
+		resp.Send(model.NewMessage(msg))
+		return
 	}
 
 	ctx, err := b.GetContext(message)
 	if err != nil {
 		logrus.Error(err)
-		b.outMessage <- &model.MessageOut{ChatId: message.Chat.ID, Text: fmt.Sprintf("Couldn't GetContext, %v", err)}
+		b.outMessage <- model.NewMessageToChat(fmt.Sprintf("Couldn't GetContext, %v", err), message.Chat.ID)
 		return
 	}
 
 	message.Ctx = ctx
 
-	if handler == nil {
-		handler = b.chats[message.Chat.ID]
-		if handler == nil {
-			var ok bool
-			handler, ok = b.handlers[menu.MenuCall]
-			if !ok {
-				logrus.Error("Couldn't handle", message.Args[0], "command")
-				return
-			}
-		}
-	}
 	handler.Handle(message, resp)
 }
 
-// If there is NO handler for given command - tries to execute
-// command with menu.MenuCall prefix
-func (b *Bot) tryHandleAsMenuCall(in *model.MessageIn) {
-	menuHandler, ok := b.handlers[menu.MenuCall]
-	if !ok {
-		return
+func (b *Bot) chooseHandler(message *model.MessageIn) (handler interfaces.CommandHandler) {
+	if strings.HasPrefix(message.Text, "/") {
+		// Extract command
+		args := strings.Split(message.Text, b.separator)
+		message.Command = args[0]
+		if len(args) > 1 {
+			message.Args = args[1:]
+		}
+
+		activeHandler, ok := b.chats[message.Chat.ID]
+		if ok {
+			// If message command and active handler's command are the same - use active in this chat handler
+			if message.Command == activeHandler.command {
+				return activeHandler.handler
+			}
+		}
+
+		handler, ok = b.handlers[message.Command]
+		if !ok && b.menuHandler.CanHandle(message) {
+			// Dump session for this handler if message calls for a new command
+			if b.menuHandler != activeHandler.handler {
+				activeHandler.handler.Dump(message.Chat.ID)
+			}
+			handler = b.menuHandler
+		}
+		b.chats[message.Chat.ID] = chatHandler{command: message.Command, handler: handler}
+		return handler
 	}
-	menuHandler.Handle(in, &Responser{chatId: in.Chat.ID, c: b.outMessage})
+	return b.chats[message.Chat.ID].handler
 }
