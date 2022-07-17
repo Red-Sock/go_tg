@@ -18,8 +18,6 @@ type MenuHandler struct {
 	localizedPatterns map[string]map[string]interfaces.Menu // locale -> command -> menu
 	chatToMenu        map[int64]interfaces.Menu             // chat id to menu
 
-	customMenus map[int64]map[string]interfaces.Menu // userID to command to menu
-
 	// Retry is a function that retries to handler message.
 	// Exists for one purpose only - in case if (all AND conditions)
 	// 1. backend has returned a custom created menu
@@ -31,8 +29,10 @@ type MenuHandler struct {
 
 func NewMenuHandler() *MenuHandler {
 	mh := MenuHandler{
-		chatToMenu:        map[int64]interfaces.Menu{},
-		localizedPatterns: map[string]map[string]interfaces.Menu{},
+		chatToMenu: map[int64]interfaces.Menu{},
+		localizedPatterns: map[string]map[string]interfaces.Menu{
+			defaultLang: map[string]interfaces.Menu{},
+		},
 	}
 
 	return &mh
@@ -153,6 +153,12 @@ func (m *MenuHandler) Dump(id int64) {
 }
 
 func (m *MenuHandler) AttachMenu(chatId int64, menu interfaces.Menu) {
+	mn, ok := m.chatToMenu[chatId]
+	if ok && mn.GetCallCommand() != menu.GetCallCommand() {
+		menu.SetMessageId(mn.GetMessageId())
+	} else {
+		menu.SetMessageId(0)
+	}
 	m.chatToMenu[chatId] = menu
 }
 
@@ -174,5 +180,11 @@ func (m *MenuHandler) CanHandle(in *model.MessageIn) bool {
 		return true
 	}
 
-	return false
+	_, ok := m.localizedPatterns[defaultLang][in.Text]
+	if ok {
+		return true
+	}
+
+	_, ok = m.getMenuStorage(in.Ctx)[in.Text]
+	return ok
 }
