@@ -187,8 +187,15 @@ func (b *Bot) handleOutgoing(qm *quitManager) {
 }
 
 func (b *Bot) handleMessage(message *model.MessageIn, outMessage chan<- interfaces.Instruction) {
-	resp := &Responser{c: outMessage, chatId: message.Chat.ID}
+	resp := &responser{c: outMessage, chatId: message.Chat.ID}
 
+	ctx, err := b.GetContext(message)
+	if err != nil {
+		logrus.Error(err)
+		b.outMessage <- model.NewMessageToChat(fmt.Sprintf("Couldn't GetContext, %v", err), message.Chat.ID)
+		return
+	}
+	message.Ctx = ctx
 	handler := b.chooseHandler(message)
 
 	if handler == nil {
@@ -197,15 +204,6 @@ func (b *Bot) handleMessage(message *model.MessageIn, outMessage chan<- interfac
 		resp.Send(model.NewMessage(msg))
 		return
 	}
-
-	ctx, err := b.GetContext(message)
-	if err != nil {
-		logrus.Error(err)
-		b.outMessage <- model.NewMessageToChat(fmt.Sprintf("Couldn't GetContext, %v", err), message.Chat.ID)
-		return
-	}
-
-	message.Ctx = ctx
 
 	handler.Handle(message, resp)
 }
@@ -230,7 +228,7 @@ func (b *Bot) chooseHandler(message *model.MessageIn) (handler interfaces.Comman
 		handler, ok = b.handlers[message.Command]
 		if !ok && b.menuHandler.CanHandle(message) {
 			// Dump session for this handler if message calls for a new command
-			if b.menuHandler != activeHandler.handler {
+			if b.menuHandler != activeHandler.handler && activeHandler.handler != nil {
 				activeHandler.handler.Dump(message.Chat.ID)
 			}
 			handler = b.menuHandler
