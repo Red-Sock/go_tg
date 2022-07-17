@@ -4,10 +4,11 @@
 
 ## Allows Telegram Bot developer to
 1. Create smart menus
-   [![ezgif.com-gif-maker91dac04b6bc3438d.gif](https://s8.gifyu.com/images/ezgif.com-gif-maker91dac04b6bc3438d.gif)](https://gifyu.com/image/SKXjv)
 2. Supports multiple language menus
 3. Allows to create static and custom dynamic menus
-    
+ 
+### Example
+   ![example](https://s8.gifyu.com/images/ezgif.com-gif-maker91dac04b6bc3438d.gif)
 ## What is ahead ?
 1. ...
 
