@@ -9,6 +9,10 @@
  
 ### Example
    ![example](https://s8.gifyu.com/images/ezgif.com-gif-maker91dac04b6bc3438d.gif)
+
+
+   <img src="https://s8.gifyu.com/images/ezgif.com-gif-maker91dac04b6bc3438d.gif" alt="My Project GIF" width="500" height="600">
+
 ## What is ahead ?
 1. ...
 
