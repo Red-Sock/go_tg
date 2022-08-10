@@ -35,7 +35,7 @@ func NewSimple(command, name string) *SimpleMenu {
 		displayedName:  name,
 		columnsPerPage: model.ColumnsDefaultAmount,
 		rowsPerPage:    model.RowsDefaultAmount,
-		pages:          make([]*tgbotapi.InlineKeyboardMarkup, 1),
+		pages:          make([]*tgbotapi.InlineKeyboardMarkup, 0, 1),
 	}
 }
 
@@ -94,7 +94,7 @@ func (m *SimpleMenu) AddStandAloneButton(name, command string) {
 }
 
 func (m *SimpleMenu) AddPage(menu InlineKeyboard) {
-	m.pagesPatterns = append(m.pagesPatterns, menu)
+	m.pages = append(m.pages, menu.ToMarkup())
 }
 
 func (m *SimpleMenu) rebuild() {

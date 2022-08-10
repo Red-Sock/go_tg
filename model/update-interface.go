@@ -6,9 +6,9 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-// RerenderMenu - is very specific case functuanality.
-// Rerenders currently opened menu (with MessageId) in chat with ChatId
-// with one locilized (if such exists) of language in Ctx with key menu.LocaleContextKey
+// RerenderMenu - is very specific case functionality.
+// Re-renders currently opened menu (with MessageId) in chat with ChatId
+// with one localized (if such exists) of language in Ctx with key menu.LocaleContextKey
 type RerenderMenu struct {
 	ChatId    int64
 	MessageId int64

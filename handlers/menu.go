@@ -7,6 +7,7 @@ import (
 	"github.com/AlexSkilled/go_tg/interfaces"
 	"github.com/AlexSkilled/go_tg/model"
 	"github.com/AlexSkilled/go_tg/model/menu"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -189,4 +190,15 @@ func (m *MenuHandler) CanHandle(in *model.MessageIn) bool {
 
 	_, ok = m.getMenuStorage(in.Ctx)[in.Text]
 	return ok
+}
+
+func (m *MenuHandler) StartMenu(ctx context.Context, chatID int64, command string) interfaces.Menu {
+	ms := m.getMenuStorage(ctx)
+	mn, ok := ms[command]
+	if !ok {
+		logrus.Errorf("No menu for command %s", command)
+		return nil
+	}
+	m.chatToMenu[chatID] = mn
+	return mn
 }

@@ -168,6 +168,11 @@ func (b *Bot) handleOutgoing(qm *quitManager) {
 				}
 				inst.SetMessageId(t.MessageId)
 				inst.SetChatIdIfZero(t.ChatId)
+			case *model.OpenMenu:
+				inst = b.menuHandler.StartMenu(t.Ctx, t.ChatId, t.Command)
+				if inst == nil {
+					continue
+				}
 			}
 
 			sendMsg, err := b.Bot.Send(inst.GetMessage())
@@ -178,7 +183,7 @@ func (b *Bot) handleOutgoing(qm *quitManager) {
 			inst.SetMessageId(int64(sendMsg.MessageID))
 
 		case <-qm.end:
-			logrus.Println("Gracefully shutted down outgoing handler")
+			logrus.Println("Gracefully shut down outgoing handler")
 			qm.wg.Done()
 			return
 		}
