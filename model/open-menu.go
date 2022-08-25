@@ -1,22 +1,17 @@
 package model
 
 import (
-	"context"
-
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 type OpenMenu struct {
-	ChatId    int64
-	MessageId int64
-	Command   string
-	Ctx       context.Context
+	Msg *MessageIn
 }
 
-func NewOpenMenu(ctx context.Context, menuCommand string) *OpenMenu {
+func NewOpenMenu(menuCommand string, originalMsg *MessageIn) *OpenMenu {
+	originalMsg.Command = menuCommand
 	return &OpenMenu{
-		Ctx:     ctx,
-		Command: menuCommand,
+		Msg: originalMsg,
 	}
 }
 
@@ -25,19 +20,19 @@ func (u *OpenMenu) GetMessage() tgbotapi.Chattable {
 }
 
 func (u *OpenMenu) GetChatId() int64 {
-	return u.ChatId
+	return u.Msg.Chat.ID
 }
 
 func (u *OpenMenu) SetChatIdIfZero(c int64) {
-	if u.ChatId == 0 {
-		u.ChatId = c
+	if u.Msg.Chat.ID == 0 {
+		u.Msg.Chat.ID = c
 	}
 }
 
 func (u *OpenMenu) SetMessageId(id int64) {
-	u.MessageId = id
+	u.Msg.MessageID = int(id)
 }
 
 func (u *OpenMenu) GetMessageId() int64 {
-	return u.MessageId
+	return int64(u.Msg.MessageID)
 }

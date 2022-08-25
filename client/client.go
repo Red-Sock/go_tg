@@ -169,7 +169,7 @@ func (b *Bot) handleOutgoing(qm *quitManager) {
 				inst.SetMessageId(t.MessageId)
 				inst.SetChatIdIfZero(t.ChatId)
 			case *model.OpenMenu:
-				inst = b.menuHandler.StartMenu(t.Ctx, t.ChatId, t.Command)
+				inst = b.menuHandler.StartMenu(t.Msg, b.outMessage)
 				if inst == nil {
 					continue
 				}
