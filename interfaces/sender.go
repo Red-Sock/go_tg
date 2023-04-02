@@ -2,6 +2,7 @@ package interfaces
 
 import tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
+// Sender TODO передалать на менее общий интерфейс
 type Sender interface {
 	Send(Instruction)
 }
