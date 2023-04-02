@@ -5,7 +5,13 @@ import (
 )
 
 type MessageOut interface {
-	GetText() string
+	//GetText() string
+	SetChatIdIfZero(chatID int64)
+	GetChatId() int64
+
+	ForceSetMessageId(msgId int64)
+
+	GetMessage() tgbotapi.Chattable
 }
 
 type messageOut struct {
@@ -47,7 +53,7 @@ func (m *messageOut) GetChatId() int64 {
 	return m.ChatId
 }
 
-func (m *messageOut) SetMessageId(id int64) {
+func (m *messageOut) ForceSetMessageId(id int64) {
 	m.MessageId = id
 }
 

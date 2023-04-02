@@ -162,7 +162,7 @@ func (m *SimpleMenu) GetChatId() int64 {
 	return m.ChatId
 }
 
-func (m *SimpleMenu) SetMessageId(id int64) {
+func (m *SimpleMenu) ForceSetMessageId(id int64) {
 	m.MessageId = id
 }
 

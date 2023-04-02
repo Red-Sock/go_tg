@@ -29,7 +29,7 @@ func (u *OpenMenu) SetChatIdIfZero(c int64) {
 	}
 }
 
-func (u *OpenMenu) SetMessageId(id int64) {
+func (u *OpenMenu) ForceSetMessageId(id int64) {
 	u.Msg.MessageID = int(id)
 }
 

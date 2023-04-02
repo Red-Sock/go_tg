@@ -1,6 +1,20 @@
 package interfaces
 
-import tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+import (
+	"context"
+	"errors"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+
+	"github.com/AlexSkilled/go_tg/model"
+)
+
+var ErrTimeout = errors.New("timeout waiting response from user")
+
+type Chat interface {
+	GetInput(ctx context.Context) (*model.MessageIn, error)
+	SendMessage(out model.MessageOut)
+}
 
 // Sender TODO передалать на менее общий интерфейс
 type Sender interface {
@@ -13,6 +27,6 @@ type Instruction interface {
 	GetChatId() int64
 	SetChatIdIfZero(c int64)
 
-	SetMessageId(id int64)
+	ForceSetMessageId(id int64)
 	GetMessageId() int64
 }

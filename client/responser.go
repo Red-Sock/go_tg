@@ -1,13 +1,30 @@
 package client
 
-import "github.com/AlexSkilled/go_tg/interfaces"
+import (
+	"context"
+	"time"
 
-type responser struct {
+	"github.com/AlexSkilled/go_tg/interfaces"
+	"github.com/AlexSkilled/go_tg/model"
+)
+
+type chat struct {
 	chatId int64
-	c      chan<- interfaces.Instruction
+	cOut   chan<- model.MessageOut
+	cIn    <-chan *model.MessageIn
 }
 
-func (r *responser) Send(ins interfaces.Instruction) {
+func (r *chat) SendMessage(ins model.MessageOut) {
 	ins.SetChatIdIfZero(r.chatId)
-	r.c <- ins
+	r.cOut <- ins
+}
+
+func (r *chat) GetInput(ctx context.Context) (*model.MessageIn, error) {
+	ctx, _ = context.WithTimeout(ctx, time.Second*10)
+	select {
+	case <-ctx.Done():
+		return nil, interfaces.ErrTimeout
+	case msg := <-r.cIn:
+		return msg, nil
+	}
 }
