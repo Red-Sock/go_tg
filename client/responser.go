@@ -9,9 +9,10 @@ import (
 )
 
 type chat struct {
-	chatId int64
-	cOut   chan<- model.MessageOut
-	cIn    <-chan *model.MessageIn
+	chatId  int64
+	cOut    chan<- model.MessageOut
+	cIn     <-chan *model.MessageIn
+	timeout time.Duration
 }
 
 func (r *chat) SendMessage(ins model.MessageOut) {
@@ -20,7 +21,7 @@ func (r *chat) SendMessage(ins model.MessageOut) {
 }
 
 func (r *chat) GetInput(ctx context.Context) (*model.MessageIn, error) {
-	ctx, _ = context.WithTimeout(ctx, time.Second*10)
+	ctx, _ = context.WithTimeout(ctx, r.timeout)
 	select {
 	case <-ctx.Done():
 		return nil, interfaces.ErrTimeout

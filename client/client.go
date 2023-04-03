@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/sirupsen/logrus"
@@ -36,8 +37,9 @@ type Bot struct {
 	locMenuPatterns []menu.LocalizedMenu
 	menuHandler     *handlers.MenuHandler
 
-	qm         *quitManager
-	outMessage chan model.MessageOut
+	qm              *quitManager
+	outMessage      chan model.MessageOut
+	responseTimeout time.Duration
 }
 
 type quitManager struct {
@@ -53,11 +55,12 @@ func NewBot(token string) *Bot {
 	}
 
 	return &Bot{
-		Bot:         bot,
-		chats:       make(map[int64]*chatHandler),
-		handlers:    make(map[string]interfaces.CommandHandler),
-		menuHandler: handlers.NewMenuHandler(),
-		separator:   " ",
+		Bot:             bot,
+		chats:           make(map[int64]*chatHandler),
+		handlers:        make(map[string]interfaces.CommandHandler),
+		menuHandler:     handlers.NewMenuHandler(),
+		separator:       " ",
+		responseTimeout: interfaces.UserResponseTimeout,
 	}
 }
 
@@ -78,6 +81,15 @@ func (b *Bot) AddMenu(pattern interfaces.Menu) {
 
 func (b *Bot) AddLocalizedMenu(locMenu menu.LocalizedMenu) {
 	b.menuHandler.AddLocalizedMenu(locMenu)
+}
+
+// SetResponseTimeout - sets timeout for user to response
+// e.g. using interfaces.Chat's method GetInput will either wait for
+// given @timeout or
+// default timeout - interfaces.UserResponseTimeout or
+// timeout provided via context
+func (b *Bot) SetResponseTimeout(timeout time.Duration) {
+	b.responseTimeout = timeout
 }
 
 func (b *Bot) Start() {
@@ -191,8 +203,9 @@ func (b *Bot) handleOutgoing(qm *quitManager) {
 
 func (b *Bot) handleMessage(message *model.MessageIn, outMessage chan<- model.MessageOut) {
 	resp := &chat{
-		chatId: message.Chat.ID,
-		cOut:   outMessage,
+		chatId:  message.Chat.ID,
+		cOut:    outMessage,
+		timeout: b.responseTimeout,
 	}
 
 	ctx, err := b.GetContext(message)
@@ -219,7 +232,6 @@ func (b *Bot) handleMessage(message *model.MessageIn, outMessage chan<- model.Me
 			handler.msgCh <- message
 			return
 		}
-
 	}
 
 	msg := "Couldn't handle " + message.Command + " command"
