@@ -14,7 +14,8 @@ import (
 	"github.com/AlexSkilled/go_tg/interfaces"
 	"github.com/AlexSkilled/go_tg/internal"
 	"github.com/AlexSkilled/go_tg/model"
-	"github.com/AlexSkilled/go_tg/model/menu"
+	"github.com/AlexSkilled/go_tg/model/response"
+	menu2 "github.com/AlexSkilled/go_tg/model/response/menu"
 )
 
 // Bot - allows you to interact with telegram bot
@@ -34,11 +35,11 @@ type Bot struct {
 	separator string
 
 	menuPatterns    []interfaces.Menu
-	locMenuPatterns []menu.LocalizedMenu
+	locMenuPatterns []menu2.LocalizedMenu
 	menuHandler     *handlers.MenuHandler
 
 	qm              *quitManager
-	outMessage      chan model.MessageOut
+	outMessage      chan interfaces.MessageOut
 	responseTimeout time.Duration
 }
 
@@ -79,7 +80,7 @@ func (b *Bot) AddMenu(pattern interfaces.Menu) {
 	b.menuHandler.AddSimpleMenu(pattern)
 }
 
-func (b *Bot) AddLocalizedMenu(locMenu menu.LocalizedMenu) {
+func (b *Bot) AddLocalizedMenu(locMenu menu2.LocalizedMenu) {
 	b.menuHandler.AddLocalizedMenu(locMenu)
 }
 
@@ -101,7 +102,7 @@ func (b *Bot) Start() {
 	}
 	// menu handler at menu.MenuCall
 	b.menuHandler.Retry = b.handleMessage
-	b.handlers[menu.Back] = b.menuHandler
+	b.handlers[menu2.Back] = b.menuHandler
 
 	// Start
 	updateConfig := tgbotapi.NewUpdate(0)
@@ -118,7 +119,7 @@ func (b *Bot) Start() {
 		wg,
 	}
 
-	b.outMessage = make(chan model.MessageOut)
+	b.outMessage = make(chan interfaces.MessageOut)
 	internal.SetSender(b.outMessage)
 
 	go b.handleInComing(updChan, b.qm)
@@ -171,14 +172,7 @@ func (b *Bot) handleOutgoing(qm *quitManager) {
 			switch t := inst.(type) {
 			case interfaces.Menu:
 				b.menuHandler.AttachMenu(inst.GetChatId(), t)
-			case *model.RerenderMenu:
-				inst = b.menuHandler.ReattachMenu(t)
-				if inst == nil {
-					continue
-				}
-				inst.ForceSetMessageId(t.MessageId)
-				inst.SetChatIdIfZero(t.ChatId)
-			case *model.OpenMenu:
+			case *response.OpenMenu:
 				inst = b.menuHandler.StartMenu(t.Msg, b.outMessage)
 				if inst == nil {
 					continue
@@ -201,7 +195,7 @@ func (b *Bot) handleOutgoing(qm *quitManager) {
 
 }
 
-func (b *Bot) handleMessage(message *model.MessageIn, outMessage chan<- model.MessageOut) {
+func (b *Bot) handleMessage(message *model.MessageIn, outMessage chan<- interfaces.MessageOut) {
 	resp := &chat{
 		chatId:  message.Chat.ID,
 		cOut:    outMessage,
@@ -211,7 +205,7 @@ func (b *Bot) handleMessage(message *model.MessageIn, outMessage chan<- model.Me
 	ctx, err := b.GetContext(message)
 	if err != nil {
 		logrus.Error(err)
-		b.outMessage <- model.NewMessageToChat(fmt.Sprintf("Couldn't GetContext, %v", err), message.Chat.ID)
+		b.outMessage <- response.NewMessageToChat(fmt.Sprintf("Couldn't GetContext, %v", err), message.Chat.ID)
 		return
 	}
 	message.Ctx = ctx
@@ -236,7 +230,7 @@ func (b *Bot) handleMessage(message *model.MessageIn, outMessage chan<- model.Me
 
 	msg := "Couldn't handle " + message.Command + " command"
 	logrus.Error(msg)
-	resp.SendMessage(model.NewMessage(msg))
+	resp.SendMessage(response.NewMessage(msg))
 }
 
 func (b *Bot) chooseHandler(message *model.MessageIn) *chatHandler {

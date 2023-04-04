@@ -1,14 +1,16 @@
-package model
+package response
 
 import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+
+	"github.com/AlexSkilled/go_tg/model"
 )
 
 type OpenMenu struct {
-	Msg *MessageIn
+	Msg *model.MessageIn
 }
 
-func NewOpenMenu(menuCommand string, originalMsg *MessageIn) *OpenMenu {
+func NewOpenMenu(menuCommand string, originalMsg *model.MessageIn) *OpenMenu {
 	originalMsg.Command = menuCommand
 	return &OpenMenu{
 		Msg: originalMsg,

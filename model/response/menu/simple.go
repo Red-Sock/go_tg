@@ -4,7 +4,6 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
 	"github.com/AlexSkilled/go_tg/interfaces"
-	"github.com/AlexSkilled/go_tg/model"
 )
 
 // SimpleMenu is a basic menu with chat buttons
@@ -34,8 +33,8 @@ func NewSimple(name, command string) *SimpleMenu {
 	return &SimpleMenu{
 		command:        command,
 		displayedName:  name,
-		columnsPerPage: model.ColumnsDefaultAmount,
-		rowsPerPage:    model.RowsDefaultAmount,
+		columnsPerPage: ColumnsDefaultAmount,
+		rowsPerPage:    RowsDefaultAmount,
 		pages:          make([]*tgbotapi.InlineKeyboardMarkup, 0, 1),
 	}
 }
