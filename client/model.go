@@ -1,6 +1,6 @@
 package client
 
-import "github.com/AlexSkilled/go_tg/interfaces"
+import "github.com/RedSock/go_tg/interfaces"
 
 type chatHandler struct {
 	command string

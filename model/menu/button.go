@@ -1,8 +1,9 @@
 package menu
 
 import (
-	"github.com/AlexSkilled/go_tg/model"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+
+	"github.com/RedSock/go_tg/model"
 )
 
 type button struct {

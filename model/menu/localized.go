@@ -1,6 +1,6 @@
 package menu
 
-import "github.com/AlexSkilled/go_tg/interfaces"
+import "github.com/RedSock/go_tg/interfaces"
 
 type LocalizedMenu struct {
 	Command    string // Printing this command calls this menu

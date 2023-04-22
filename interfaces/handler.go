@@ -1,7 +1,7 @@
 package interfaces
 
 import (
-	"github.com/AlexSkilled/go_tg/model"
+	"github.com/RedSock/go_tg/model"
 )
 
 // CommandHandler - structure that contains logic for

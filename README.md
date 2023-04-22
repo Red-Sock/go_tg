@@ -26,10 +26,10 @@ import (
    "os/signal"
    "strings"
 
-   "github.com/AlexSkilled/go_tg/client"
-   tg "github.com/AlexSkilled/go_tg/interfaces"
-   "github.com/AlexSkilled/go_tg/model"
-   "github.com/AlexSkilled/go_tg/model/menu"
+   "github.com/RedSock/go_tg/client"
+   tg "github.com/RedSock/go_tg/interfaces"
+   "github.com/RedSock/go_tg/model"
+   "github.com/RedSock/go_tg/model/menu"
 )
 
 func main() {

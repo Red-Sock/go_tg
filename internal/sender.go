@@ -1,6 +1,6 @@
 package internal
 
-import "github.com/AlexSkilled/go_tg/interfaces"
+import "github.com/RedSock/go_tg/interfaces"
 
 var s chan<- interfaces.Instruction
 

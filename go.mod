@@ -1,4 +1,4 @@
-module github.com/AlexSkilled/go_tg
+module github.com/RedSock/go_tg
 
 go 1.18
 

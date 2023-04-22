@@ -6,13 +6,14 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/AlexSkilled/go_tg/handlers"
-	"github.com/AlexSkilled/go_tg/interfaces"
-	"github.com/AlexSkilled/go_tg/internal"
-	"github.com/AlexSkilled/go_tg/model"
-	"github.com/AlexSkilled/go_tg/model/menu"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/sirupsen/logrus"
+
+	"github.com/RedSock/go_tg/handlers"
+	"github.com/RedSock/go_tg/interfaces"
+	"github.com/RedSock/go_tg/internal"
+	"github.com/RedSock/go_tg/model"
+	"github.com/RedSock/go_tg/model/menu"
 )
 
 // Bot - allows you to interact with telegram bot
