@@ -1,6 +1,6 @@
-module github.com/RedSock/go_tg
+module github.com/Red-Sock/go_tg
 
-go 1.18
+go 1.20
 
 require (
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1

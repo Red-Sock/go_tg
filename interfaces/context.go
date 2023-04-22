@@ -3,7 +3,7 @@ package interfaces
 import (
 	"context"
 
-	"github.com/RedSock/go_tg/model"
+	"github.com/Red-Sock/go_tg/model"
 )
 
 type ExternalContext interface {

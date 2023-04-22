@@ -9,11 +9,11 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/sirupsen/logrus"
 
-	"github.com/RedSock/go_tg/handlers"
-	"github.com/RedSock/go_tg/interfaces"
-	"github.com/RedSock/go_tg/internal"
-	"github.com/RedSock/go_tg/model"
-	"github.com/RedSock/go_tg/model/menu"
+	"github.com/Red-Sock/go_tg/handlers"
+	"github.com/Red-Sock/go_tg/interfaces"
+	"github.com/Red-Sock/go_tg/internal"
+	"github.com/Red-Sock/go_tg/model"
+	"github.com/Red-Sock/go_tg/model/menu"
 )
 
 // Bot - allows you to interact with telegram bot

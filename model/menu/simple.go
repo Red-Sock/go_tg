@@ -3,8 +3,8 @@ package menu
 import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
-	"github.com/RedSock/go_tg/interfaces"
-	"github.com/RedSock/go_tg/model"
+	"github.com/Red-Sock/go_tg/interfaces"
+	"github.com/Red-Sock/go_tg/model"
 )
 
 // SimpleMenu is a basic menu with chat buttons

@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/RedSock/go_tg/interfaces"
-	"github.com/RedSock/go_tg/model"
-	"github.com/RedSock/go_tg/model/menu"
+	"github.com/Red-Sock/go_tg/interfaces"
+	"github.com/Red-Sock/go_tg/model"
+	"github.com/Red-Sock/go_tg/model/menu"
 )
 
 const (
