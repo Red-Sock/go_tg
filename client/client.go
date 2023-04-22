@@ -5,14 +5,17 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/sirupsen/logrus"
 
 	"github.com/AlexSkilled/go_tg/handlers"
 	"github.com/AlexSkilled/go_tg/interfaces"
 	"github.com/AlexSkilled/go_tg/internal"
 	"github.com/AlexSkilled/go_tg/model"
-	"github.com/AlexSkilled/go_tg/model/menu"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/sirupsen/logrus"
+	"github.com/AlexSkilled/go_tg/model/response"
+	menu2 "github.com/AlexSkilled/go_tg/model/response/menu"
 )
 
 // Bot - allows you to interact with telegram bot
@@ -25,18 +28,19 @@ import (
 type Bot struct {
 	Bot *tgbotapi.BotAPI
 
-	chats    map[int64]chatHandler
+	chats    map[int64]*chatHandler
 	handlers map[string]interfaces.CommandHandler
 
 	interfaces.ExternalContext
 	separator string
 
 	menuPatterns    []interfaces.Menu
-	locMenuPatterns []menu.LocalizedMenu
+	locMenuPatterns []menu2.LocalizedMenu
 	menuHandler     *handlers.MenuHandler
 
-	qm         *quitManager
-	outMessage chan interfaces.Instruction
+	qm              *quitManager
+	outMessage      chan interfaces.MessageOut
+	responseTimeout time.Duration
 }
 
 type quitManager struct {
@@ -52,11 +56,12 @@ func NewBot(token string) *Bot {
 	}
 
 	return &Bot{
-		Bot:         bot,
-		chats:       make(map[int64]chatHandler),
-		handlers:    make(map[string]interfaces.CommandHandler),
-		menuHandler: handlers.NewMenuHandler(),
-		separator:   " ",
+		Bot:             bot,
+		chats:           make(map[int64]*chatHandler),
+		handlers:        make(map[string]interfaces.CommandHandler),
+		menuHandler:     handlers.NewMenuHandler(),
+		separator:       " ",
+		responseTimeout: interfaces.UserResponseTimeout,
 	}
 }
 
@@ -75,8 +80,17 @@ func (b *Bot) AddMenu(pattern interfaces.Menu) {
 	b.menuHandler.AddSimpleMenu(pattern)
 }
 
-func (b *Bot) AddLocalizedMenu(locMenu menu.LocalizedMenu) {
+func (b *Bot) AddLocalizedMenu(locMenu menu2.LocalizedMenu) {
 	b.menuHandler.AddLocalizedMenu(locMenu)
+}
+
+// SetResponseTimeout - sets timeout for user to response
+// e.g. using interfaces.Chat's method GetInput will either wait for
+// given @timeout or
+// default timeout - interfaces.UserResponseTimeout or
+// timeout provided via context
+func (b *Bot) SetResponseTimeout(timeout time.Duration) {
+	b.responseTimeout = timeout
 }
 
 func (b *Bot) Start() {
@@ -88,8 +102,7 @@ func (b *Bot) Start() {
 	}
 	// menu handler at menu.MenuCall
 	b.menuHandler.Retry = b.handleMessage
-	b.handlers[menu.MenuCall] = b.menuHandler
-	b.handlers[menu.Back] = b.menuHandler
+	b.handlers[menu2.Back] = b.menuHandler
 
 	// Start
 	updateConfig := tgbotapi.NewUpdate(0)
@@ -106,7 +119,7 @@ func (b *Bot) Start() {
 		wg,
 	}
 
-	b.outMessage = make(chan interfaces.Instruction)
+	b.outMessage = make(chan interfaces.MessageOut)
 	internal.SetSender(b.outMessage)
 
 	go b.handleInComing(updChan, b.qm)
@@ -125,7 +138,6 @@ func (b *Bot) handleInComing(updChan tgbotapi.UpdatesChannel, qm *quitManager) {
 		case update := <-updChan:
 			switch {
 			case update.Message != nil:
-
 				b.handleMessage(&model.MessageIn{
 					Message: update.Message,
 				}, b.outMessage)
@@ -149,7 +161,6 @@ func (b *Bot) handleInComing(updChan tgbotapi.UpdatesChannel, qm *quitManager) {
 			qm.wg.Done()
 			return
 		}
-
 	}
 }
 
@@ -161,14 +172,7 @@ func (b *Bot) handleOutgoing(qm *quitManager) {
 			switch t := inst.(type) {
 			case interfaces.Menu:
 				b.menuHandler.AttachMenu(inst.GetChatId(), t)
-			case *model.RerenderMenu:
-				inst = b.menuHandler.ReattachMenu(t)
-				if inst == nil {
-					continue
-				}
-				inst.SetMessageId(t.MessageId)
-				inst.SetChatIdIfZero(t.ChatId)
-			case *model.OpenMenu:
+			case *response.OpenMenu:
 				inst = b.menuHandler.StartMenu(t.Msg, b.outMessage)
 				if inst == nil {
 					continue
@@ -180,7 +184,7 @@ func (b *Bot) handleOutgoing(qm *quitManager) {
 				logrus.Error(err)
 			}
 
-			inst.SetMessageId(int64(sendMsg.MessageID))
+			inst.ForceSetMessageId(int64(sendMsg.MessageID))
 
 		case <-qm.end:
 			logrus.Println("Gracefully shut down outgoing handler")
@@ -191,55 +195,67 @@ func (b *Bot) handleOutgoing(qm *quitManager) {
 
 }
 
-func (b *Bot) handleMessage(message *model.MessageIn, outMessage chan<- interfaces.Instruction) {
-	resp := &responser{c: outMessage, chatId: message.Chat.ID}
+func (b *Bot) handleMessage(message *model.MessageIn, outMessage chan<- interfaces.MessageOut) {
+	resp := &chat{
+		chatId:  message.Chat.ID,
+		cOut:    outMessage,
+		timeout: b.responseTimeout,
+	}
 
 	ctx, err := b.GetContext(message)
 	if err != nil {
 		logrus.Error(err)
-		b.outMessage <- model.NewMessageToChat(fmt.Sprintf("Couldn't GetContext, %v", err), message.Chat.ID)
+		b.outMessage <- response.NewMessageToChat(fmt.Sprintf("Couldn't GetContext, %v", err), message.Chat.ID)
 		return
 	}
 	message.Ctx = ctx
-	handler := b.chooseHandler(message)
 
-	if handler == nil {
-		msg := "Couldn't handle " + message.Command + " command"
-		logrus.Error(msg)
-		resp.Send(model.NewMessage(msg))
-		return
+	// if message starts with command separator - treat it as a start of new command
+	if strings.HasPrefix(message.Text, "/") {
+		cHandler := b.chooseHandler(message)
+		if cHandler.handler != nil {
+			resp.cIn = cHandler.msgCh
+			if cHandler != nil {
+				go cHandler.handler.Handle(message, resp)
+			}
+			return
+		}
+	} else {
+		handler, ok := b.chats[message.Chat.ID]
+		if ok {
+			handler.msgCh <- message
+			return
+		}
 	}
 
-	handler.Handle(message, resp)
+	msg := "Couldn't handle " + message.Command + " command"
+	logrus.Error(msg)
+	resp.SendMessage(response.NewMessage(msg))
 }
 
-func (b *Bot) chooseHandler(message *model.MessageIn) (handler interfaces.CommandHandler) {
-	if strings.HasPrefix(message.Text, "/") {
-		// Extract command
-		args := strings.Split(message.Text, b.separator)
-		message.Command = args[0]
-		if len(args) > 1 {
-			message.Args = args[1:]
-		}
-
-		activeHandler, ok := b.chats[message.Chat.ID]
-		if ok {
-			// If message command and active handler's command are the same - use active in this chat handler
-			if message.Command == activeHandler.command {
-				return activeHandler.handler
-			}
-		}
-
-		handler, ok = b.handlers[message.Command]
-		if !ok && b.menuHandler.CanHandle(message) {
-			// Dump session for this handler if message calls for a new command
-			if b.menuHandler != activeHandler.handler && activeHandler.handler != nil {
-				activeHandler.handler.Dump(message.Chat.ID)
-			}
-			handler = b.menuHandler
-		}
-		b.chats[message.Chat.ID] = chatHandler{command: message.Command, handler: handler}
-		return handler
+func (b *Bot) chooseHandler(message *model.MessageIn) *chatHandler {
+	args := strings.Split(message.Text, b.separator)
+	message.Command = args[0]
+	if len(args) > 1 {
+		message.Args = args[1:]
 	}
-	return b.chats[message.Chat.ID].handler
+
+	handler, ok := b.handlers[message.Command]
+	if !ok && b.menuHandler.CanHandle(message) {
+		handler = b.menuHandler
+	}
+
+	activeHandler, ok := b.chats[message.Chat.ID]
+	if ok {
+		activeHandler.handler = handler
+		close(activeHandler.msgCh)
+		activeHandler.msgCh = make(chan *model.MessageIn)
+	} else {
+		b.chats[message.Chat.ID] = &chatHandler{
+			handler: handler,
+			msgCh:   make(chan *model.MessageIn),
+		}
+	}
+
+	return b.chats[message.Chat.ID]
 }

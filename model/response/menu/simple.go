@@ -1,9 +1,9 @@
 package menu
 
 import (
-	"github.com/AlexSkilled/go_tg/interfaces"
-	"github.com/AlexSkilled/go_tg/model"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+
+	"github.com/AlexSkilled/go_tg/interfaces"
 )
 
 // SimpleMenu is a basic menu with chat buttons
@@ -29,12 +29,12 @@ func (m *SimpleMenu) GetCopy() interfaces.Menu {
 	return &mCopy
 }
 
-func NewSimple(command, name string) *SimpleMenu {
+func NewSimple(name, command string) *SimpleMenu {
 	return &SimpleMenu{
 		command:        command,
 		displayedName:  name,
-		columnsPerPage: model.ColumnsDefaultAmount,
-		rowsPerPage:    model.RowsDefaultAmount,
+		columnsPerPage: ColumnsDefaultAmount,
+		rowsPerPage:    RowsDefaultAmount,
 		pages:          make([]*tgbotapi.InlineKeyboardMarkup, 0, 1),
 	}
 }
@@ -161,7 +161,7 @@ func (m *SimpleMenu) GetChatId() int64 {
 	return m.ChatId
 }
 
-func (m *SimpleMenu) SetMessageId(id int64) {
+func (m *SimpleMenu) ForceSetMessageId(id int64) {
 	m.MessageId = id
 }
 

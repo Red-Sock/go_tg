@@ -1,17 +1,31 @@
 package interfaces
 
-import tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+import (
+	"context"
+	"errors"
+	"time"
 
-type Sender interface {
-	Send(Instruction)
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+
+	"github.com/AlexSkilled/go_tg/model"
+)
+
+var ErrTimeout = errors.New("timeout waiting response from user")
+
+const UserResponseTimeout = time.Second * 10
+
+type Chat interface {
+	// GetInput - awaits for users response with given in a ctx timeout or
+	GetInput(ctx context.Context) (*model.MessageIn, error)
+	SendMessage(out MessageOut)
 }
 
-type Instruction interface {
-	GetMessage() tgbotapi.Chattable
-
+type MessageOut interface {
+	SetChatIdIfZero(chatID int64)
 	GetChatId() int64
-	SetChatIdIfZero(c int64)
 
-	SetMessageId(id int64)
+	ForceSetMessageId(msgId int64)
 	GetMessageId() int64
+
+	GetMessage() tgbotapi.Chattable
 }

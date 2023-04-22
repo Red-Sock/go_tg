@@ -6,7 +6,8 @@ import (
 
 	"github.com/AlexSkilled/go_tg/interfaces"
 	"github.com/AlexSkilled/go_tg/model"
-	"github.com/AlexSkilled/go_tg/model/menu"
+	"github.com/AlexSkilled/go_tg/model/response"
+	menu2 "github.com/AlexSkilled/go_tg/model/response/menu"
 )
 
 const (
@@ -24,7 +25,7 @@ type MenuHandler struct {
 	// 2. user has felt into sub menu
 	// 3. user wants to return from sub menu to custom created menu
 	// framework retries to call backend same command specified for parent menu
-	Retry func(message *model.MessageIn, c chan<- interfaces.Instruction)
+	Retry func(message *model.MessageIn, c chan<- interfaces.MessageOut)
 }
 
 func NewMenuHandler() *MenuHandler {
@@ -46,7 +47,7 @@ func (m *MenuHandler) AddSimpleMenu(item interfaces.Menu) {
 	m.localizedPatterns[defaultLang][item.GetCallCommand()] = item
 }
 
-func (m *MenuHandler) AddLocalizedMenu(item menu.LocalizedMenu) {
+func (m *MenuHandler) AddLocalizedMenu(item menu2.LocalizedMenu) {
 	for lang, menuItem := range item.LangToMenu {
 
 		if in, ok := m.localizedPatterns[lang]; ok {
@@ -59,17 +60,17 @@ func (m *MenuHandler) AddLocalizedMenu(item menu.LocalizedMenu) {
 	}
 }
 
-func (m *MenuHandler) Handle(in *model.MessageIn, out interfaces.Sender) {
+func (m *MenuHandler) Handle(in *model.MessageIn, out interfaces.Chat) {
 	menuStorage := m.getMenuStorage(in.Ctx)
 
 	switch in.Command {
-	case menu.MenuCall:
-		out.Send(m.handleMenuCall(in, menuStorage))
-	case menu.Back:
+	//case menu.MenuCall:
+	//	out.SendMessage(m.handleMenuCall(in, menuStorage))
+	case menu2.Back:
 		if currentMenu, ok := m.chatToMenu[in.Chat.ID]; ok {
 			prev := currentMenu.GetPreviousMenu()
 			if prev == nil {
-				out.Send(model.NewMessage("Nowhere to return!"))
+				out.SendMessage(response.NewMessage("Nowhere to return!"))
 				return
 			}
 			ms := m.getMenuStorage(in.Ctx)
@@ -77,7 +78,7 @@ func (m *MenuHandler) Handle(in *model.MessageIn, out interfaces.Sender) {
 			newPrev := ms[prev.GetCallCommand()]
 			if newPrev == nil {
 				in.Text = prev.GetCallCommand()
-				c := make(chan interfaces.Instruction)
+				c := make(chan interfaces.MessageOut)
 				go m.Retry(in, c)
 				inst := <-c
 
@@ -86,36 +87,37 @@ func (m *MenuHandler) Handle(in *model.MessageIn, out interfaces.Sender) {
 					return
 				}
 			}
-			newPrev.SetMessageId(prev.GetMessageId())
+			newPrev.ForceSetMessageId(prev.GetMessageId())
 			newPrev.SetChatIdIfZero(prev.GetChatId())
 			newPrev.SetPreviousMenu(prev.GetPreviousMenu())
-			out.Send(newPrev)
+			out.SendMessage(newPrev)
 		}
 	default:
-		out.Send(m.startMenu(in, menuStorage))
+		out.SendMessage(m.startMenu(in, menuStorage))
 	}
 }
 
-func (m *MenuHandler) startMenu(in *model.MessageIn, mStorage map[string]interfaces.Menu) interfaces.Instruction {
+func (m *MenuHandler) startMenu(in *model.MessageIn, mStorage map[string]interfaces.Menu) interfaces.MessageOut {
 	if pattern, ok := mStorage[in.Text]; ok {
 
 		if msg, ok := m.chatToMenu[in.Chat.ID]; ok {
 			pattern = pattern.GetCopy()
-			pattern.SetMessageId(msg.GetMessageId())
+			pattern.ForceSetMessageId(msg.GetMessageId())
 			if msg.GetCallCommand() != pattern.GetCallCommand() {
 				pattern.SetPreviousMenu(msg)
 			}
 		} else {
-			pattern.SetMessageId(int64(in.MessageID))
+			pattern.ForceSetMessageId(int64(in.MessageID))
 		}
 		pattern.SetChatIdIfZero(in.Chat.ID)
 
 		return pattern
 	}
-	return model.NewMessage(NoMenuError + in.Text)
+	return response.NewMessage(NoMenuError + in.Text)
 }
 
-func (m *MenuHandler) handleMenuCall(in *model.MessageIn, mStorage map[string]interfaces.Menu) interfaces.Instruction {
+// TODO
+func (m *MenuHandler) handleMenuCall(in *model.MessageIn, mStorage map[string]interfaces.Menu) interfaces.MessageOut {
 	if len(in.Args) == 0 {
 		return nil
 	}
@@ -133,7 +135,7 @@ func (m *MenuHandler) handleMenuCall(in *model.MessageIn, mStorage map[string]in
 		}
 
 		pattern.SetPreviousMenu(m.chatToMenu[in.Chat.ID])
-		pattern.SetMessageId(int64(in.MessageID))
+		pattern.ForceSetMessageId(int64(in.MessageID))
 
 		return pattern
 	}
@@ -157,25 +159,14 @@ func (m *MenuHandler) Dump(id int64) {
 func (m *MenuHandler) AttachMenu(chatId int64, menu interfaces.Menu) {
 	mn, ok := m.chatToMenu[chatId]
 	if ok && mn.GetCallCommand() != menu.GetCallCommand() {
-		menu.SetMessageId(mn.GetMessageId())
+		menu.ForceSetMessageId(mn.GetMessageId())
 	} else {
-		menu.SetMessageId(0)
+		menu.ForceSetMessageId(0)
 	}
 	m.chatToMenu[chatId] = menu
 }
 
-func (m *MenuHandler) ReattachMenu(req *model.RerenderMenu) interfaces.Menu {
-	currentMenu := m.chatToMenu[req.ChatId]
-	if currentMenu == nil {
-		return nil
-	}
-	newMenu := m.getMenuStorage(req.Ctx)[currentMenu.GetCallCommand()]
-	newMenu.SetPreviousMenu(currentMenu.GetPreviousMenu())
-	newMenu.SetMessageId(req.MessageId)
-	m.chatToMenu[req.ChatId] = newMenu
-	return newMenu
-}
-
+// TODO
 func (m *MenuHandler) CanHandle(in *model.MessageIn) bool {
 	// Can handler if there is a chat with menu
 	if _, ok := m.chatToMenu[in.Chat.ID]; ok {
@@ -191,7 +182,7 @@ func (m *MenuHandler) CanHandle(in *model.MessageIn) bool {
 	return ok
 }
 
-func (m *MenuHandler) StartMenu(message *model.MessageIn, c chan<- interfaces.Instruction) interfaces.Menu {
+func (m *MenuHandler) StartMenu(message *model.MessageIn, c chan<- interfaces.MessageOut) interfaces.Menu {
 	ms := m.getMenuStorage(message.Ctx)
 	mn, ok := ms[message.Command]
 	if !ok {

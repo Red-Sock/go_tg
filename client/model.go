@@ -1,8 +1,11 @@
 package client
 
-import "github.com/AlexSkilled/go_tg/interfaces"
+import (
+	"github.com/AlexSkilled/go_tg/interfaces"
+	"github.com/AlexSkilled/go_tg/model"
+)
 
 type chatHandler struct {
-	command string
 	handler interfaces.CommandHandler
+	msgCh   chan *model.MessageIn
 }
