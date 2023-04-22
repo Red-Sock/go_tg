@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/sirupsen/logrus"
 
@@ -15,7 +14,8 @@ import (
 	"github.com/Red-Sock/go_tg/interfaces"
 	"github.com/Red-Sock/go_tg/internal"
 	"github.com/Red-Sock/go_tg/model"
-	"github.com/Red-Sock/go_tg/model/menu"
+	"github.com/Red-Sock/go_tg/model/response"
+	menu2 "github.com/Red-Sock/go_tg/model/response/menu"
 )
 
 // Bot - allows you to interact with telegram bot
