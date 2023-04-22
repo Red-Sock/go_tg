@@ -12,8 +12,5 @@ type CommandHandler interface {
 	// database, other service and etc.
 	// in - is the message with payload in context.
 	// out - is the channel which will send outgoing messages
-	Handle(in *model.MessageIn, out Sender)
-	// Dump is has to clear all context of current handler with
-	// chatId
-	Dump(chatId int64)
+	Handle(in *model.MessageIn, out Chat)
 }
