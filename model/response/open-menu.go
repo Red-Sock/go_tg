@@ -3,7 +3,7 @@ package response
 import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
-	"github.com/AlexSkilled/go_tg/model"
+	"github.com/Red-Sock/go_tg/model"
 )
 
 type OpenMenu struct {
