@@ -6,17 +6,17 @@ import (
 	"github.com/Red-Sock/go_tg/model"
 )
 
-type button struct {
-	Text         string
-	Value        string
-	IsStandAlone bool
-}
-
 type InlineKeyboard struct {
 	btns []button
 
 	Columns uint8
 	Rows    uint8
+}
+
+type button struct {
+	Text         string
+	Value        string
+	IsStandAlone bool
 }
 
 func (b *InlineKeyboard) AddButton(text, value string) {
@@ -36,11 +36,11 @@ func (b *InlineKeyboard) AddStandAloneButton(text, value string) {
 
 func (b *InlineKeyboard) ToMarkup() (markup *tgbotapi.InlineKeyboardMarkup) {
 	if b.Columns == 0 {
-		b.Columns = model.ColumnsDefaultAmount
+		b.Columns = ColumnsDefaultAmount
 	}
 
 	if b.Rows == 0 {
-		b.Rows = model.RowsDefaultAmount
+		b.Rows = RowsDefaultAmount
 	}
 
 	rows := make([][]tgbotapi.InlineKeyboardButton, 1, b.Rows)
@@ -72,36 +72,4 @@ func (b *InlineKeyboard) ToMarkup() (markup *tgbotapi.InlineKeyboardMarkup) {
 		}
 	}
 	return &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: rows}
-}
-
-type Keyboard struct {
-	btns []string
-
-	Columns int
-
-	ResizeKeyboard bool `json:"resize_keyboard"`
-}
-
-func (b *Keyboard) AddKey(value string) {
-	b.btns = append(b.btns, value)
-}
-func (b *Keyboard) toMarkup() *tgbotapi.ReplyKeyboardMarkup {
-	if b.Columns == 0 {
-		b.Columns = 1
-	}
-
-	finalButtonsSet := make([][]tgbotapi.KeyboardButton, 0, 1)
-	i := 0
-	raw := -1
-	for i < len(b.btns) {
-		if i%b.Columns == 0 {
-			finalButtonsSet = append(finalButtonsSet, make([]tgbotapi.KeyboardButton, 0, b.Columns))
-			raw++
-		}
-		finalButtonsSet[raw] = append(finalButtonsSet[raw],
-			tgbotapi.NewKeyboardButton(b.btns[i]))
-		i++
-	}
-
-	return &tgbotapi.ReplyKeyboardMarkup{Keyboard: finalButtonsSet, ResizeKeyboard: true}
 }

@@ -13,11 +13,3 @@ type MessageIn struct {
 
 	*tgbotapi.Message
 }
-
-func (m *MessageIn) Delete() {
-	//TODO
-}
-
-func (m *MessageIn) Response(out string) {
-	//internal.Send(NewReplyToMessage(out, m.Chat.ID, int64(m.MessageID)))
-}

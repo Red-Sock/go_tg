@@ -10,8 +10,7 @@ import tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 // GetTransitionCommand - returns command that (`/command format`) that replaces currently opened menu with this one
 // GetPreviousMenu - returns previously opened menu
 type Menu interface {
-	Instruction
-
+	MessageOut
 	GetName() (name string)
 	GetPage(number ...int) (menu *tgbotapi.InlineKeyboardMarkup)
 	GetCallCommand() (command string)
