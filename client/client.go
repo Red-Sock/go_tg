@@ -12,10 +12,10 @@ import (
 
 	"github.com/Red-Sock/go_tg/handlers"
 	"github.com/Red-Sock/go_tg/interfaces"
-	"github.com/Red-Sock/go_tg/internal"
 	"github.com/Red-Sock/go_tg/model"
 	"github.com/Red-Sock/go_tg/model/response"
 	menu2 "github.com/Red-Sock/go_tg/model/response/menu"
+	"github.com/Red-Sock/go_tg/send"
 )
 
 // Bot - allows you to interact with telegram bot
@@ -120,7 +120,7 @@ func (b *Bot) Start() {
 	}
 
 	b.outMessage = make(chan interfaces.MessageOut)
-	internal.SetSender(b.outMessage)
+	send.SetSender(b.outMessage)
 
 	go b.handleInComing(updChan, b.qm)
 	go b.handleOutgoing(b.qm)

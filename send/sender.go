@@ -1,4 +1,4 @@
-package internal
+package send
 
 import "github.com/Red-Sock/go_tg/interfaces"
 
