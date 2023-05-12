@@ -58,9 +58,10 @@ func (b *InlineKeyboard) ToMarkup() (markup *tgbotapi.InlineKeyboardMarkup) {
 		if cCol >= b.Columns {
 			rows = append(rows, []tgbotapi.InlineKeyboardButton{btnMark})
 			cRaw++
-			cCol = 0
+			cCol = 1
 		} else {
 			rows[cRaw] = append(rows[cRaw], btnMark)
+			cCol++
 		}
 
 		processedButtons++

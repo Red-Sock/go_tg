@@ -132,6 +132,10 @@ func (b *Bot) Stop() {
 	b.qm.wg.Wait()
 }
 
+func (b *Bot) Send(msg interfaces.MessageOut) {
+	b.outMessage <- msg
+}
+
 func (b *Bot) handleInComing(updChan tgbotapi.UpdatesChannel, qm *quitManager) {
 	for {
 		select {
