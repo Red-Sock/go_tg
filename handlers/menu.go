@@ -28,11 +28,15 @@ type MenuHandler struct {
 	Retry func(message *model.MessageIn, c chan<- interfaces.MessageOut)
 }
 
+func (m *MenuHandler) GetDescription() string {
+	return "Handler for menu"
+}
+
 func NewMenuHandler() *MenuHandler {
 	mh := MenuHandler{
 		chatToMenu: map[int64]interfaces.Menu{},
 		localizedPatterns: map[string]map[string]interfaces.Menu{
-			defaultLang: map[string]interfaces.Menu{},
+			defaultLang: {},
 		},
 	}
 
