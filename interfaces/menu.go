@@ -19,4 +19,6 @@ type Menu interface {
 	GetPreviousMenu() (menu Menu)
 
 	GetCopy() Menu
+
+	GetDescription() string
 }

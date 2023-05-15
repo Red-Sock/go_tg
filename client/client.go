@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -93,7 +94,7 @@ func (b *Bot) SetResponseTimeout(timeout time.Duration) {
 	b.responseTimeout = timeout
 }
 
-func (b *Bot) Start() {
+func (b *Bot) Start() error {
 	// Context
 	if b.ExternalContext == nil {
 		b.ExternalContext = interfaces.GetContextFunc(func(_ *model.MessageIn) (context.Context, error) {
@@ -122,12 +123,58 @@ func (b *Bot) Start() {
 	b.outMessage = make(chan interfaces.MessageOut)
 	send.SetSender(b.outMessage)
 
-	go b.handleInComing(updChan, b.qm)
-	go b.handleOutgoing(b.qm)
+	defer func() {
+		go b.handleInComing(updChan, b.qm)
+		go b.handleOutgoing(b.qm)
+	}()
 
+	commands := make([]tgbotapi.BotCommand, 0, len(b.handlers)+len(b.menuPatterns))
+
+	for command, handler := range b.handlers {
+		err := validateCommand(command)
+		if err != nil {
+			return fmt.Errorf("error in command: %s. %w", command, err)
+		}
+
+		commands = append(commands, tgbotapi.BotCommand{
+			Command:     command,
+			Description: handler.GetDescription(),
+		})
+	}
+
+	for _, item := range b.menuPatterns {
+		command := item.GetCallCommand()
+
+		err := validateCommand(command)
+		if err != nil {
+			return fmt.Errorf("error in command: %s. %w", command, err)
+		}
+
+		commands = append(commands, tgbotapi.BotCommand{
+			Command:     command,
+			Description: item.GetDescription(),
+		})
+	}
+
+	rsp, err := b.Bot.Request(tgbotapi.NewSetMyCommands(commands...))
+	if err != nil {
+		return errors.Join(errors.New("error performing bot request to update commands"), err)
+	}
+
+	if !rsp.Ok {
+		jsn, err := rsp.Result.MarshalJSON()
+		if err != nil {
+			return errors.Join(errors.New("error marshalling tg response"), err)
+		}
+		return errors.New(string(jsn))
+	}
+
+	return nil
 }
 
 func (b *Bot) Stop() {
+	b.Bot.StopReceivingUpdates()
+
 	close(b.qm.end)
 	b.qm.wg.Wait()
 }
@@ -262,4 +309,34 @@ func (b *Bot) chooseHandler(message *model.MessageIn) *chatHandler {
 	}
 
 	return b.chats[message.Chat.ID]
+}
+
+func validateCommand(command string) error {
+	if len(command) < 2 {
+		return errors.New("no name entered")
+	}
+
+	if command[0] != '/' {
+		return errors.New("command has to start with \"/\" symbol")
+	}
+
+	availableRanges := [][]int32{
+		{95, 95},
+		{48, 57},
+		{97, 122},
+	}
+	for _, s := range command[1:] {
+		var hasHitRange = false
+		for _, r := range availableRanges {
+			if s >= r[0] && s <= r[1] {
+				hasHitRange = true
+				break
+			}
+		}
+		if !hasHitRange {
+			return errors.New("name contains \"" + string(s) + "\" symbol")
+		}
+	}
+
+	return nil
 }

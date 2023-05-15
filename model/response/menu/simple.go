@@ -168,3 +168,7 @@ func (m *SimpleMenu) ForceSetMessageId(id int64) {
 func (m *SimpleMenu) GetMessageId() int64 {
 	return m.MessageId
 }
+
+func (m *SimpleMenu) GetDescription() string {
+	return "simple menu handler"
+}
