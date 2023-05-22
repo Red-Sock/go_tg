@@ -11,11 +11,10 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/sirupsen/logrus"
 
-	"github.com/Red-Sock/go_tg/handlers"
+	"github.com/Red-Sock/go_tg/handlers/returner"
 	"github.com/Red-Sock/go_tg/interfaces"
 	"github.com/Red-Sock/go_tg/model"
 	"github.com/Red-Sock/go_tg/model/response"
-	menu2 "github.com/Red-Sock/go_tg/model/response/menu"
 	"github.com/Red-Sock/go_tg/send"
 )
 
@@ -34,10 +33,6 @@ type Bot struct {
 
 	interfaces.ExternalContext
 	separator string
-
-	menuPatterns    []interfaces.Menu
-	locMenuPatterns []menu2.LocalizedMenu
-	menuHandler     *handlers.MenuHandler
 
 	qm              *quitManager
 	outMessage      chan interfaces.MessageOut
@@ -59,8 +54,7 @@ func NewBot(token string) *Bot {
 	return &Bot{
 		Bot:             bot,
 		chats:           make(map[int64]*chatHandler),
-		handlers:        make(map[string]interfaces.CommandHandler),
-		menuHandler:     handlers.NewMenuHandler(),
+		handlers:        map[string]interfaces.CommandHandler{},
 		separator:       " ",
 		responseTimeout: interfaces.UserResponseTimeout,
 	}
@@ -70,19 +64,12 @@ func NewBot(token string) *Bot {
 // for command
 // e.g. for command "/help"
 // handler should send help information to user
-func (b *Bot) AddCommandHandler(handler interfaces.CommandHandler, command string) {
+func (b *Bot) AddCommandHandler(handler interfaces.CommandHandler) {
+	command := handler.GetCommand()
 	if _, ok := b.handlers[command]; ok {
 		panic(fmt.Sprintf("Command handler with name %s already exists", command))
 	}
 	b.handlers[command] = handler
-}
-
-func (b *Bot) AddMenu(pattern interfaces.Menu) {
-	b.menuHandler.AddSimpleMenu(pattern)
-}
-
-func (b *Bot) AddLocalizedMenu(locMenu menu2.LocalizedMenu) {
-	b.menuHandler.AddLocalizedMenu(locMenu)
 }
 
 // SetResponseTimeout - sets timeout for user to response
@@ -101,11 +88,8 @@ func (b *Bot) Start() error {
 			return context.Background(), nil
 		})
 	}
-	// menu handler at menu.MenuCall
-	b.menuHandler.Retry = b.handleMessage
-	b.handlers[menu2.Back] = b.menuHandler
 
-	// Start
+	// HandlerMenu
 	updateConfig := tgbotapi.NewUpdate(0)
 	updateConfig.Timeout = 60
 
@@ -128,7 +112,7 @@ func (b *Bot) Start() error {
 		go b.handleOutgoing(b.qm)
 	}()
 
-	commands := make([]tgbotapi.BotCommand, 0, len(b.handlers)+len(b.menuPatterns))
+	commands := make([]tgbotapi.BotCommand, 0, len(b.handlers))
 
 	for command, handler := range b.handlers {
 		err := validateCommand(command)
@@ -142,19 +126,11 @@ func (b *Bot) Start() error {
 		})
 	}
 
-	for _, item := range b.menuPatterns {
-		command := item.GetCallCommand()
-
-		err := validateCommand(command)
-		if err != nil {
-			return fmt.Errorf("error in command: %s. %w", command, err)
-		}
-
-		commands = append(commands, tgbotapi.BotCommand{
-			Command:     command,
-			Description: item.GetDescription(),
-		})
+	returnHandler := &returner.Handler{
+		Handlers: b.handlers,
 	}
+
+	b.AddCommandHandler(returnHandler)
 
 	rsp, err := b.Bot.Request(tgbotapi.NewSetMyCommands(commands...))
 	if err != nil {
@@ -219,17 +195,6 @@ func (b *Bot) handleOutgoing(qm *quitManager) {
 	for {
 		select {
 		case inst := <-b.outMessage:
-			// If outgoing message is menu - add menu
-			switch t := inst.(type) {
-			case interfaces.Menu:
-				b.menuHandler.AttachMenu(inst.GetChatId(), t)
-			case *response.OpenMenu:
-				inst = b.menuHandler.StartMenu(t.Msg, b.outMessage)
-				if inst == nil {
-					continue
-				}
-			}
-
 			sendMsg, err := b.Bot.Send(inst.GetMessage())
 			if err != nil {
 				logrus.Error(err)
@@ -292,8 +257,8 @@ func (b *Bot) chooseHandler(message *model.MessageIn) *chatHandler {
 	}
 
 	handler, ok := b.handlers[message.Command]
-	if !ok && b.menuHandler.CanHandle(message) {
-		handler = b.menuHandler
+	if !ok {
+		return &chatHandler{}
 	}
 
 	activeHandler, ok := b.chats[message.Chat.ID]

@@ -14,4 +14,5 @@ type CommandHandler interface {
 	// out - is the channel which will send outgoing messages
 	Handle(in *model.MessageIn, out Chat)
 	GetDescription() string
+	GetCommand() string
 }

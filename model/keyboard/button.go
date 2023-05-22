@@ -1,7 +1,9 @@
-package menu
+package keyboard
 
 import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+
+	"github.com/Red-Sock/go_tg/handlers/commands"
 )
 
 type InlineKeyboard struct {
@@ -71,4 +73,8 @@ func (b *InlineKeyboard) ToMarkup() (markup *tgbotapi.InlineKeyboardMarkup) {
 		}
 	}
 	return &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: rows}
+}
+
+func (b *InlineKeyboard) AddReturnButton(text, value string) {
+	b.AddButton(text, commands.Return+" "+value)
 }
