@@ -7,9 +7,9 @@ import (
 )
 
 type MessageIn struct {
-	Command string
-	Args    []string
-	Ctx     context.Context
-
+	Command    string
+	Args       []string
+	Ctx        context.Context
+	IsCallback bool
 	*tgbotapi.Message
 }

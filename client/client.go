@@ -176,10 +176,11 @@ func (b *Bot) handleInComing(updChan tgbotapi.UpdatesChannel, qm *quitManager) {
 
 				_, err := b.Bot.Request(tgbotapi.CallbackConfig{CallbackQueryID: update.CallbackQuery.ID})
 				if err != nil {
-					logrus.Error(err)
+					logrus.Errorf("error responsing to callback %s", err)
 				}
 				b.handleMessage(&model.MessageIn{
-					Message: update.CallbackQuery.Message,
+					Message:    update.CallbackQuery.Message,
+					IsCallback: true,
 				}, b.outMessage)
 				break
 			}
@@ -197,7 +198,10 @@ func (b *Bot) handleOutgoing(qm *quitManager) {
 		case inst := <-b.outMessage:
 			sendMsg, err := b.Bot.Send(inst.GetMessage())
 			if err != nil {
-				logrus.Error(err)
+				// TODO. When deleting TG API sends simple "true"/"false" response. Library tries to parse it via json to structure
+				if !strings.Contains(err.Error(), "json: cannot unmarshal bool into Go value of type tgbotapi.Message") {
+					logrus.Errorf("error sending message %d to chat %d from handler: %s", inst.GetMessageId(), inst.GetChatId(), err)
+				}
 			}
 
 			inst.ForceSetMessageId(int64(sendMsg.MessageID))
@@ -220,7 +224,7 @@ func (b *Bot) handleMessage(message *model.MessageIn, outMessage chan<- interfac
 
 	ctx, err := b.GetContext(message)
 	if err != nil {
-		logrus.Error(err)
+		logrus.Errorf("error obtaining context %s", err)
 		b.outMessage <- response.NewMessageToChat(fmt.Sprintf("Couldn't GetContext, %v", err), message.Chat.ID)
 		return
 	}
