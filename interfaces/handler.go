@@ -13,4 +13,6 @@ type CommandHandler interface {
 	// in - is the message with payload in context.
 	// out - is the channel which will send outgoing messages
 	Handle(in *model.MessageIn, out Chat)
+	GetDescription() string
+	GetCommand() string
 }

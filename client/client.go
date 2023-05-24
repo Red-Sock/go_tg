@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -10,12 +11,11 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/sirupsen/logrus"
 
-	"github.com/Red-Sock/go_tg/handlers"
+	"github.com/Red-Sock/go_tg/handlers/returner"
 	"github.com/Red-Sock/go_tg/interfaces"
-	"github.com/Red-Sock/go_tg/internal"
 	"github.com/Red-Sock/go_tg/model"
 	"github.com/Red-Sock/go_tg/model/response"
-	menu2 "github.com/Red-Sock/go_tg/model/response/menu"
+	"github.com/Red-Sock/go_tg/send"
 )
 
 // Bot - allows you to interact with telegram bot
@@ -33,10 +33,6 @@ type Bot struct {
 
 	interfaces.ExternalContext
 	separator string
-
-	menuPatterns    []interfaces.Menu
-	locMenuPatterns []menu2.LocalizedMenu
-	menuHandler     *handlers.MenuHandler
 
 	qm              *quitManager
 	outMessage      chan interfaces.MessageOut
@@ -58,8 +54,7 @@ func NewBot(token string) *Bot {
 	return &Bot{
 		Bot:             bot,
 		chats:           make(map[int64]*chatHandler),
-		handlers:        make(map[string]interfaces.CommandHandler),
-		menuHandler:     handlers.NewMenuHandler(),
+		handlers:        map[string]interfaces.CommandHandler{},
 		separator:       " ",
 		responseTimeout: interfaces.UserResponseTimeout,
 	}
@@ -69,19 +64,12 @@ func NewBot(token string) *Bot {
 // for command
 // e.g. for command "/help"
 // handler should send help information to user
-func (b *Bot) AddCommandHandler(handler interfaces.CommandHandler, command string) {
+func (b *Bot) AddCommandHandler(handler interfaces.CommandHandler) {
+	command := handler.GetCommand()
 	if _, ok := b.handlers[command]; ok {
 		panic(fmt.Sprintf("Command handler with name %s already exists", command))
 	}
 	b.handlers[command] = handler
-}
-
-func (b *Bot) AddMenu(pattern interfaces.Menu) {
-	b.menuHandler.AddSimpleMenu(pattern)
-}
-
-func (b *Bot) AddLocalizedMenu(locMenu menu2.LocalizedMenu) {
-	b.menuHandler.AddLocalizedMenu(locMenu)
 }
 
 // SetResponseTimeout - sets timeout for user to response
@@ -93,18 +81,15 @@ func (b *Bot) SetResponseTimeout(timeout time.Duration) {
 	b.responseTimeout = timeout
 }
 
-func (b *Bot) Start() {
+func (b *Bot) Start() error {
 	// Context
 	if b.ExternalContext == nil {
 		b.ExternalContext = interfaces.GetContextFunc(func(_ *model.MessageIn) (context.Context, error) {
 			return context.Background(), nil
 		})
 	}
-	// menu handler at menu.MenuCall
-	b.menuHandler.Retry = b.handleMessage
-	b.handlers[menu2.Back] = b.menuHandler
 
-	// Start
+	// HandlerMenu
 	updateConfig := tgbotapi.NewUpdate(0)
 	updateConfig.Timeout = 60
 
@@ -120,16 +105,58 @@ func (b *Bot) Start() {
 	}
 
 	b.outMessage = make(chan interfaces.MessageOut)
-	internal.SetSender(b.outMessage)
+	send.SetSender(b.outMessage)
 
-	go b.handleInComing(updChan, b.qm)
-	go b.handleOutgoing(b.qm)
+	defer func() {
+		go b.handleInComing(updChan, b.qm)
+		go b.handleOutgoing(b.qm)
+	}()
 
+	commands := make([]tgbotapi.BotCommand, 0, len(b.handlers))
+
+	for command, handler := range b.handlers {
+		err := validateCommand(command)
+		if err != nil {
+			return fmt.Errorf("error in command: %s. %w", command, err)
+		}
+
+		commands = append(commands, tgbotapi.BotCommand{
+			Command:     command,
+			Description: handler.GetDescription(),
+		})
+	}
+
+	returnHandler := &returner.Handler{
+		Handlers: b.handlers,
+	}
+
+	b.AddCommandHandler(returnHandler)
+
+	rsp, err := b.Bot.Request(tgbotapi.NewSetMyCommands(commands...))
+	if err != nil {
+		return errors.Join(errors.New("error performing bot request to update commands"), err)
+	}
+
+	if !rsp.Ok {
+		jsn, err := rsp.Result.MarshalJSON()
+		if err != nil {
+			return errors.Join(errors.New("error marshalling tg response"), err)
+		}
+		return errors.New(string(jsn))
+	}
+
+	return nil
 }
 
 func (b *Bot) Stop() {
+	b.Bot.StopReceivingUpdates()
+
 	close(b.qm.end)
 	b.qm.wg.Wait()
+}
+
+func (b *Bot) Send(msg interfaces.MessageOut) {
+	b.outMessage <- msg
 }
 
 func (b *Bot) handleInComing(updChan tgbotapi.UpdatesChannel, qm *quitManager) {
@@ -149,10 +176,11 @@ func (b *Bot) handleInComing(updChan tgbotapi.UpdatesChannel, qm *quitManager) {
 
 				_, err := b.Bot.Request(tgbotapi.CallbackConfig{CallbackQueryID: update.CallbackQuery.ID})
 				if err != nil {
-					logrus.Error(err)
+					logrus.Errorf("error responsing to callback %s", err)
 				}
 				b.handleMessage(&model.MessageIn{
-					Message: update.CallbackQuery.Message,
+					Message:    update.CallbackQuery.Message,
+					IsCallback: true,
 				}, b.outMessage)
 				break
 			}
@@ -168,20 +196,12 @@ func (b *Bot) handleOutgoing(qm *quitManager) {
 	for {
 		select {
 		case inst := <-b.outMessage:
-			// If outgoing message is menu - add menu
-			switch t := inst.(type) {
-			case interfaces.Menu:
-				b.menuHandler.AttachMenu(inst.GetChatId(), t)
-			case *response.OpenMenu:
-				inst = b.menuHandler.StartMenu(t.Msg, b.outMessage)
-				if inst == nil {
-					continue
-				}
-			}
-
 			sendMsg, err := b.Bot.Send(inst.GetMessage())
 			if err != nil {
-				logrus.Error(err)
+				// TODO. When deleting TG API sends simple "true"/"false" response. Library tries to parse it via json to structure
+				if !strings.Contains(err.Error(), "json: cannot unmarshal bool into Go value of type tgbotapi.Message") {
+					logrus.Errorf("error sending message %d to chat %d from handler: %s", inst.GetMessageId(), inst.GetChatId(), err)
+				}
 			}
 
 			inst.ForceSetMessageId(int64(sendMsg.MessageID))
@@ -204,7 +224,7 @@ func (b *Bot) handleMessage(message *model.MessageIn, outMessage chan<- interfac
 
 	ctx, err := b.GetContext(message)
 	if err != nil {
-		logrus.Error(err)
+		logrus.Errorf("error obtaining context %s", err)
 		b.outMessage <- response.NewMessageToChat(fmt.Sprintf("Couldn't GetContext, %v", err), message.Chat.ID)
 		return
 	}
@@ -241,8 +261,8 @@ func (b *Bot) chooseHandler(message *model.MessageIn) *chatHandler {
 	}
 
 	handler, ok := b.handlers[message.Command]
-	if !ok && b.menuHandler.CanHandle(message) {
-		handler = b.menuHandler
+	if !ok {
+		return &chatHandler{}
 	}
 
 	activeHandler, ok := b.chats[message.Chat.ID]
@@ -258,4 +278,34 @@ func (b *Bot) chooseHandler(message *model.MessageIn) *chatHandler {
 	}
 
 	return b.chats[message.Chat.ID]
+}
+
+func validateCommand(command string) error {
+	if len(command) < 2 {
+		return errors.New("no name entered")
+	}
+
+	if command[0] != '/' {
+		return errors.New("command has to start with \"/\" symbol")
+	}
+
+	availableRanges := [][]int32{
+		{95, 95},
+		{48, 57},
+		{97, 122},
+	}
+	for _, s := range command[1:] {
+		var hasHitRange = false
+		for _, r := range availableRanges {
+			if s >= r[0] && s <= r[1] {
+				hasHitRange = true
+				break
+			}
+		}
+		if !hasHitRange {
+			return errors.New("name contains \"" + string(s) + "\" symbol")
+		}
+	}
+
+	return nil
 }

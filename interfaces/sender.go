@@ -7,10 +7,13 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
-	"github.com/AlexSkilled/go_tg/model"
+	"github.com/Red-Sock/go_tg/model"
 )
 
-var ErrTimeout = errors.New("timeout waiting response from user")
+var (
+	ErrTimeout  = errors.New("timeout waiting response from user")
+	ErrCanceled = errors.New("action has been canceled by another command")
+)
 
 const UserResponseTimeout = time.Second * 10
 

@@ -1,9 +1,11 @@
 package client
 
-import "github.com/Red-Sock/go_tg/interfaces"
+import (
+	"context"
+	"time"
 
-	"github.com/AlexSkilled/go_tg/interfaces"
-	"github.com/AlexSkilled/go_tg/model"
+	"github.com/Red-Sock/go_tg/interfaces"
+	"github.com/Red-Sock/go_tg/model"
 )
 
 type chat struct {
@@ -27,7 +29,10 @@ func (r *chat) GetInput(ctx context.Context) (*model.MessageIn, error) {
 	select {
 	case <-ctx.Done():
 		return nil, interfaces.ErrTimeout
-	case msg := <-r.cIn:
+	case msg, ok := <-r.cIn:
+		if !ok {
+			return nil, interfaces.ErrCanceled
+		}
 		return msg, nil
 	}
 }

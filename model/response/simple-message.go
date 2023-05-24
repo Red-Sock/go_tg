@@ -3,7 +3,7 @@ package response
 import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
-	"github.com/AlexSkilled/go_tg/model/response/menu"
+	"github.com/Red-Sock/go_tg/model/keyboard"
 )
 
 type MessageOut struct {
@@ -12,7 +12,7 @@ type MessageOut struct {
 
 	MessageId int64
 
-	Keys *menu.InlineKeyboard
+	Keys *keyboard.InlineKeyboard
 }
 
 func NewMessage(text string) *MessageOut {
@@ -24,6 +24,16 @@ func NewMessageToChat(text string, chatId int64) *MessageOut {
 }
 
 func (m *MessageOut) GetMessage() tgbotapi.Chattable {
+	if m.MessageId != 0 {
+		msg := EditMessage{
+			ChatId:    m.ChatId,
+			Text:      m.Text,
+			MessageId: m.MessageId,
+			Keys:      m.Keys,
+		}
+		return msg.GetMessage()
+	}
+
 	message := tgbotapi.NewMessage(m.ChatId, m.Text)
 	message.DisableWebPagePreview = true
 
@@ -53,6 +63,6 @@ func (m *MessageOut) GetMessageId() int64 {
 	return m.MessageId
 }
 
-func (m *MessageOut) AddKeyboard(keys menu.InlineKeyboard) {
+func (m *MessageOut) AddKeyboard(keys keyboard.InlineKeyboard) {
 	m.Keys = &keys
 }

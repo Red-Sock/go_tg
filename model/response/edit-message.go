@@ -3,7 +3,7 @@ package response
 import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
-	"github.com/AlexSkilled/go_tg/model/response/menu"
+	"github.com/Red-Sock/go_tg/model/keyboard"
 )
 
 type EditMessage struct {
@@ -12,7 +12,7 @@ type EditMessage struct {
 
 	MessageId int64
 
-	Keys *menu.InlineKeyboard
+	Keys *keyboard.InlineKeyboard
 }
 
 func (m *EditMessage) GetMessage() tgbotapi.Chattable {
