@@ -29,7 +29,10 @@ func (r *chat) GetInput(ctx context.Context) (*model.MessageIn, error) {
 	select {
 	case <-ctx.Done():
 		return nil, interfaces.ErrTimeout
-	case msg := <-r.cIn:
+	case msg, ok := <-r.cIn:
+		if !ok {
+			return nil, interfaces.ErrCanceled
+		}
 		return msg, nil
 	}
 }
