@@ -12,7 +12,8 @@ type MessageOut struct {
 
 	MessageId int64
 
-	Keys *keyboard.InlineKeyboard
+	Keys     *keyboard.InlineKeyboard
+	Entities tgbotapi.MessageEntity
 }
 
 func NewMessage(text string) *MessageOut {
