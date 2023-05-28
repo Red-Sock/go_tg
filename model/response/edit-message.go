@@ -12,7 +12,8 @@ type EditMessage struct {
 
 	MessageId int64
 
-	Keys *keyboard.InlineKeyboard
+	Keys     *keyboard.InlineKeyboard
+	Entities []tgbotapi.MessageEntity
 }
 
 func (m *EditMessage) GetMessage() tgbotapi.Chattable {
@@ -21,6 +22,7 @@ func (m *EditMessage) GetMessage() tgbotapi.Chattable {
 		mu := m.Keys.ToMarkup()
 		message := tgbotapi.NewEditMessageTextAndMarkup(m.ChatId, int(m.MessageId), m.Text, *mu)
 		message.DisableWebPagePreview = true
+		message.Entities = m.Entities
 
 		return message
 	case m.Keys != nil:
@@ -30,7 +32,7 @@ func (m *EditMessage) GetMessage() tgbotapi.Chattable {
 		return message
 	case m.Text != "":
 		message := tgbotapi.NewEditMessageText(m.ChatId, int(m.MessageId), m.Text)
-
+		message.Entities = m.Entities
 		return message
 	default:
 		return nil
