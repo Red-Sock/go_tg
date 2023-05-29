@@ -13,7 +13,7 @@ type MessageOut struct {
 	MessageId int64
 
 	Keys     *keyboard.InlineKeyboard
-	Entities tgbotapi.MessageEntity
+	Entities []tgbotapi.MessageEntity
 }
 
 func NewMessage(text string) *MessageOut {
@@ -37,6 +37,10 @@ func (m *MessageOut) GetMessage() tgbotapi.Chattable {
 
 	message := tgbotapi.NewMessage(m.ChatId, m.Text)
 	message.DisableWebPagePreview = true
+
+	if len(m.Entities) != 0 {
+		message.Entities = m.Entities
+	}
 
 	if m.Keys != nil {
 		keyboard := m.Keys.ToMarkup()
