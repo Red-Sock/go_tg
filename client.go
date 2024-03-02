@@ -1,4 +1,4 @@
-package client
+package go_tg
 
 import (
 	"context"
@@ -11,12 +11,18 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/sirupsen/logrus"
 
-	"github.com/Red-Sock/go_tg/handlers/returner"
 	"github.com/Red-Sock/go_tg/interfaces"
+	"github.com/Red-Sock/go_tg/internal"
 	"github.com/Red-Sock/go_tg/model"
-	"github.com/Red-Sock/go_tg/model/response"
 	"github.com/Red-Sock/go_tg/send"
 )
+
+type TgApi interface {
+	Start() error
+	Stop()
+	AddCommandHandler(handler interfaces.CommandHandler)
+	SetDefaultCommandHandler(h interfaces.Handler)
+}
 
 // Bot - allows you to interact with telegram bot
 // with some features
@@ -28,8 +34,8 @@ import (
 type Bot struct {
 	Bot *tgbotapi.BotAPI
 
-	chats    map[int64]*chatHandler
-	handlers map[string]interfaces.CommandHandler
+	handlers       map[string]interfaces.CommandHandler
+	defaultHandler interfaces.Handler
 
 	interfaces.ExternalContext
 	separator string
@@ -53,11 +59,16 @@ func NewBot(token string) *Bot {
 
 	return &Bot{
 		Bot:             bot,
-		chats:           make(map[int64]*chatHandler),
 		handlers:        map[string]interfaces.CommandHandler{},
 		separator:       " ",
 		responseTimeout: interfaces.UserResponseTimeout,
+		defaultHandler:  &internal.DefaultHandler{},
 	}
+}
+
+// SetDefaultCommandHandler sets custom handler for unresolved messages
+func (b *Bot) SetDefaultCommandHandler(h interfaces.Handler) {
+	b.defaultHandler = h
 }
 
 // AddCommandHandler adds a command handler
@@ -84,9 +95,9 @@ func (b *Bot) SetResponseTimeout(timeout time.Duration) {
 func (b *Bot) Start() error {
 	// Context
 	if b.ExternalContext == nil {
-		b.ExternalContext = interfaces.GetContextFunc(func(_ *model.MessageIn) (context.Context, error) {
-			return context.Background(), nil
-		})
+		b.ExternalContext = func(_ *model.MessageIn) context.Context {
+			return context.Background()
+		}
 	}
 
 	// HandlerMenu
@@ -97,19 +108,17 @@ func (b *Bot) Start() error {
 
 	quit := make(chan struct{})
 	wg := &sync.WaitGroup{}
-	wg.Add(2)
+	wg.Add(1)
 
 	b.qm = &quitManager{
 		quit,
 		wg,
 	}
 
-	b.outMessage = make(chan interfaces.MessageOut)
-	send.SetSender(b.outMessage)
+	send.SetSender(b.handleOutgoing)
 
 	defer func() {
 		go b.handleInComing(updChan, b.qm)
-		go b.handleOutgoing(b.qm)
 	}()
 
 	commands := make([]tgbotapi.BotCommand, 0, len(b.handlers))
@@ -120,17 +129,14 @@ func (b *Bot) Start() error {
 			return fmt.Errorf("error in command: %s. %w", command, err)
 		}
 
-		commands = append(commands, tgbotapi.BotCommand{
-			Command:     command,
-			Description: handler.GetDescription(),
-		})
+		d, ok := handler.(interfaces.Description)
+		if ok {
+			commands = append(commands, tgbotapi.BotCommand{
+				Command:     command,
+				Description: d.GetDescription(),
+			})
+		}
 	}
-
-	returnHandler := &returner.Handler{
-		Handlers: b.handlers,
-	}
-
-	b.AddCommandHandler(returnHandler)
 
 	rsp, err := b.Bot.Request(tgbotapi.NewSetMyCommands(commands...))
 	if err != nil {
@@ -156,7 +162,7 @@ func (b *Bot) Stop() {
 }
 
 func (b *Bot) Send(msg interfaces.MessageOut) {
-	b.outMessage <- msg
+	b.handleOutgoing(msg)
 }
 
 func (b *Bot) handleInComing(updChan tgbotapi.UpdatesChannel, qm *quitManager) {
@@ -167,8 +173,8 @@ func (b *Bot) handleInComing(updChan tgbotapi.UpdatesChannel, qm *quitManager) {
 			case update.Message != nil:
 				b.handleMessage(&model.MessageIn{
 					Message: update.Message,
-				}, b.outMessage)
-				break
+				})
+
 			case update.CallbackQuery != nil:
 				message := update.CallbackQuery.Message
 				message.Text = update.CallbackQuery.Data
@@ -181,8 +187,8 @@ func (b *Bot) handleInComing(updChan tgbotapi.UpdatesChannel, qm *quitManager) {
 				b.handleMessage(&model.MessageIn{
 					Message:    update.CallbackQuery.Message,
 					IsCallback: true,
-				}, b.outMessage)
-				break
+				})
+
 			}
 		case <-qm.end:
 			logrus.Println("Gracefully shutted down incoming handler")
@@ -192,92 +198,51 @@ func (b *Bot) handleInComing(updChan tgbotapi.UpdatesChannel, qm *quitManager) {
 	}
 }
 
-func (b *Bot) handleOutgoing(qm *quitManager) {
-	for {
-		select {
-		case inst := <-b.outMessage:
-			sendMsg, err := b.Bot.Send(inst.GetMessage())
-			if err != nil {
-				// TODO. When deleting TG API sends simple "true"/"false" response. Library tries to parse it via json to structure
-				if !strings.Contains(err.Error(), "json: cannot unmarshal bool into Go value of type tgbotapi.Message") {
-					logrus.Errorf("error sending message %d to chat %d from handler: %s", inst.GetMessageId(), inst.GetChatId(), err)
-				}
-			}
-
-			inst.ForceSetMessageId(int64(sendMsg.MessageID))
-
-		case <-qm.end:
-			logrus.Println("Gracefully shut down outgoing handler")
-			qm.wg.Done()
-			return
-		}
-	}
-
-}
-
-func (b *Bot) handleMessage(message *model.MessageIn, outMessage chan<- interfaces.MessageOut) {
-	resp := &chat{
-		chatId:  message.Chat.ID,
-		cOut:    outMessage,
-		timeout: b.responseTimeout,
-	}
-
-	ctx, err := b.GetContext(message)
+func (b *Bot) handleOutgoing(out interfaces.MessageOut) error {
+	sendMsg, err := b.Bot.Send(out.GetMessage())
 	if err != nil {
-		logrus.Errorf("error obtaining context %s", err)
-		b.outMessage <- response.NewMessageToChat(fmt.Sprintf("Couldn't GetContext, %v", err), message.Chat.ID)
-		return
-	}
-	message.Ctx = ctx
-
-	// if message starts with command separator - treat it as a start of new command
-	if strings.HasPrefix(message.Text, "/") {
-		cHandler := b.chooseHandler(message)
-		if cHandler.handler != nil {
-			resp.cIn = cHandler.msgCh
-			if cHandler != nil {
-				go cHandler.handler.Handle(message, resp)
-			}
-			return
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "json: cannot unmarshal bool into Go value of type tgbotapi.Message") {
+			return nil
 		}
-	} else {
-		handler, ok := b.chats[message.Chat.ID]
-		if ok {
-			handler.msgCh <- message
-			return
+		if strings.Contains(errMsg, "Bad Request: message is not modified: specified new message content and reply markup are exactly the same as a current content and reply markup of the message") {
+			return nil
 		}
+		return err
 	}
 
-	msg := "Couldn't handle " + message.Command + " command"
-	logrus.Error(msg)
-	resp.SendMessage(response.NewMessage(msg))
+	out.ForceSetMessageId(int64(sendMsg.MessageID))
+
+	return nil
 }
 
-func (b *Bot) chooseHandler(message *model.MessageIn) *chatHandler {
-	args := strings.Split(message.Text, b.separator)
-	message.Command = args[0]
-	if len(args) > 1 {
-		message.Args = args[1:]
+func (b *Bot) handleMessage(message *model.MessageIn) {
+	resp := &internal.Chat{
+		ChatId:  message.Chat.ID,
+		COut:    b.handleOutgoing,
+		Timeout: b.responseTimeout,
 	}
+	message.Args = strings.Split(message.Text, " ")
+
+	if len(message.Args) != 0 {
+		if message.Args[0][0] == '/' {
+			message.Command = message.Args[0]
+			message.Args = message.Args[1:]
+		}
+	}
+
+	message.Ctx = b.ExternalContext(message)
+
+	var handler interfaces.Handler
 
 	handler, ok := b.handlers[message.Command]
 	if !ok {
-		return &chatHandler{}
+		handler = b.defaultHandler
 	}
 
-	activeHandler, ok := b.chats[message.Chat.ID]
-	if ok {
-		activeHandler.handler = handler
-		close(activeHandler.msgCh)
-		activeHandler.msgCh = make(chan *model.MessageIn)
-	} else {
-		b.chats[message.Chat.ID] = &chatHandler{
-			handler: handler,
-			msgCh:   make(chan *model.MessageIn),
-		}
-	}
+	logrus.Infof("%s with args %v", message.Command, message.Args)
 
-	return b.chats[message.Chat.ID]
+	handler.Handle(message, resp)
 }
 
 func validateCommand(command string) error {

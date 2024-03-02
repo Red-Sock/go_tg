@@ -12,21 +12,20 @@ type EditMessage struct {
 
 	MessageId int64
 
-	Keys     *keyboard.InlineKeyboard
+	Keys     *keyboard.Keyboard
 	Entities []tgbotapi.MessageEntity
 }
 
 func (m *EditMessage) GetMessage() tgbotapi.Chattable {
 	switch {
 	case m.Keys != nil && m.Text != "":
-		mu := m.Keys.ToMarkup()
+		mu := m.Keys.ToInlineMarkup()
 		message := tgbotapi.NewEditMessageTextAndMarkup(m.ChatId, int(m.MessageId), m.Text, *mu)
 		message.DisableWebPagePreview = true
 		message.Entities = m.Entities
-
 		return message
 	case m.Keys != nil:
-		mu := m.Keys.ToMarkup()
+		mu := m.Keys.ToInlineMarkup()
 		message := tgbotapi.NewEditMessageReplyMarkup(m.ChatId, int(m.MessageId), *mu)
 
 		return message

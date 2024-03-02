@@ -6,9 +6,7 @@ import (
 	"github.com/Red-Sock/go_tg/model"
 )
 
-type ExternalContext interface {
-	GetContext(in *model.MessageIn) (context.Context, error)
-}
+type ExternalContext func(in *model.MessageIn) context.Context
 
 type GetContextFunc func(in *model.MessageIn) (context.Context, error)
 

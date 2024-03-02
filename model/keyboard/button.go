@@ -6,11 +6,13 @@ import (
 	"github.com/Red-Sock/go_tg/handlers/commands"
 )
 
-type InlineKeyboard struct {
+type Keyboard struct {
 	btns []button
 
 	Columns uint8
 	Rows    uint8
+
+	IsReplyKeyboard bool
 }
 
 type button struct {
@@ -19,14 +21,14 @@ type button struct {
 	IsStandAlone bool
 }
 
-func (b *InlineKeyboard) AddButton(text, value string) {
+func (b *Keyboard) AddButton(text, value string) {
 	b.btns = append(b.btns, button{
 		Text:  text,
 		Value: value,
 	})
 }
 
-func (b *InlineKeyboard) AddStandAloneButton(text, value string) {
+func (b *Keyboard) AddStandAloneButton(text, value string) {
 	b.btns = append(b.btns, button{
 		Text:         text,
 		Value:        value,
@@ -34,7 +36,7 @@ func (b *InlineKeyboard) AddStandAloneButton(text, value string) {
 	})
 }
 
-func (b *InlineKeyboard) ToMarkup() (markup *tgbotapi.InlineKeyboardMarkup) {
+func (b *Keyboard) ToInlineMarkup() *tgbotapi.InlineKeyboardMarkup {
 	if b.Columns == 0 {
 		b.Columns = ColumnsDefaultAmount
 	}
@@ -75,6 +77,47 @@ func (b *InlineKeyboard) ToMarkup() (markup *tgbotapi.InlineKeyboardMarkup) {
 	return &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
-func (b *InlineKeyboard) AddReturnButton(text, value string) {
+func (b *Keyboard) ToKeyboardMarkup() *tgbotapi.ReplyKeyboardMarkup {
+	if b.Columns == 0 {
+		b.Columns = ColumnsDefaultAmount
+	}
+
+	if b.Rows == 0 {
+		b.Rows = RowsDefaultAmount
+	}
+
+	rows := make([][]tgbotapi.KeyboardButton, 1, b.Rows)
+
+	var cRaw, cCol uint8
+
+	processedButtons := 0
+	for _, btn := range b.btns {
+		btnMark := tgbotapi.NewKeyboardButton(btn.Text)
+
+		if btn.IsStandAlone {
+			rows = append(rows, []tgbotapi.KeyboardButton{btnMark})
+			cRaw++
+			continue
+		}
+
+		if cCol >= b.Columns {
+			rows = append(rows, []tgbotapi.KeyboardButton{btnMark})
+			cRaw++
+			cCol = 1
+		} else {
+			rows[cRaw] = append(rows[cRaw], btnMark)
+			cCol++
+		}
+
+		processedButtons++
+
+		if cRaw >= b.Rows {
+			return &tgbotapi.ReplyKeyboardMarkup{Keyboard: rows}
+		}
+	}
+	return &tgbotapi.ReplyKeyboardMarkup{Keyboard: rows}
+}
+
+func (b *Keyboard) AddReturnButton(text, value string) {
 	b.AddButton(text, commands.Return+" "+value)
 }

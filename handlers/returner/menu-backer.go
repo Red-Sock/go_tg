@@ -1,7 +1,6 @@
 package returner
 
 import (
-	"context"
 	"strings"
 
 	"github.com/Red-Sock/go_tg/handlers/commands"
@@ -50,14 +49,4 @@ func (h *Handler) GetCommand() string {
 	return commands.Return
 }
 
-type chatProxy struct {
-	savedMessage interfaces.MessageOut
-	realChat     interfaces.Chat
-}
-
-func (c *chatProxy) GetInput(ctx context.Context) (*model.MessageIn, error) {
-	return c.realChat.GetInput(ctx)
-}
-func (c *chatProxy) SendMessage(out interfaces.MessageOut) {
-	c.savedMessage = out
-}
+type chatPro
