@@ -2,12 +2,12 @@ package send
 
 import "github.com/Red-Sock/go_tg/interfaces"
 
-var s chan<- interfaces.MessageOut
+var send func(out interfaces.MessageOut) error
 
-func SetSender(sender chan<- interfaces.MessageOut) {
-	s = sender
+func SetSender(s func(out interfaces.MessageOut) error) {
+	send = s
 }
 
 func Send(instruction interfaces.MessageOut) {
-	s <- instruction
+	send(instruction)
 }

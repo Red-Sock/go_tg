@@ -1,0 +1,15 @@
+name: Branch-push
+run-name: ${{ github.REF_NAME }} pull request
+on:
+  push:
+    branches:
+      - RSI-*
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create PR
+        uses: RedSockActions/create_pr@v0.0.10
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
