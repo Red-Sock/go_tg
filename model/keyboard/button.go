@@ -115,7 +115,3 @@ func (b *Keyboard) ToKeyboardMarkup() *tgbotapi.ReplyKeyboardMarkup {
 	}
 	return &tgbotapi.ReplyKeyboardMarkup{Keyboard: rows}
 }
-
-func (b *Keyboard) AddReturnButton(text, value string) {
-	b.AddButton(text, commands.Return+" "+value)
-}
