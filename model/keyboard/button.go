@@ -2,8 +2,6 @@ package keyboard
 
 import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-
-	"github.com/Red-Sock/go_tg/handlers/commands"
 )
 
 type Keyboard struct {
