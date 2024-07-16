@@ -12,7 +12,7 @@ type MessageOut struct {
 
 	MessageId int64
 
-	Keys     *keyboard.Keyboard
+	Keys     keyboard.Keyboard
 	Entities []tgbotapi.MessageEntity
 }
 
@@ -44,7 +44,7 @@ func (m *MessageOut) GetMessage() tgbotapi.Chattable {
 
 	if m.Keys != nil {
 		var keyboard any
-		if m.Keys.IsReplyKeyboard {
+		if m.Keys.IsReplyKeyboard() {
 			keyboard = m.Keys.ToKeyboardMarkup()
 		} else {
 			keyboard = m.Keys.ToInlineMarkup()
@@ -76,5 +76,5 @@ func (m *MessageOut) GetMessageId() int64 {
 }
 
 func (m *MessageOut) AddKeyboard(keys keyboard.Keyboard) {
-	m.Keys = &keys
+	m.Keys = keys
 }

@@ -12,7 +12,7 @@ type EditMessage struct {
 
 	MessageId int64
 
-	Keys     *keyboard.Keyboard
+	Keys     keyboard.Keyboard
 	Entities []tgbotapi.MessageEntity
 }
 
