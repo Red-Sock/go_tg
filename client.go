@@ -224,7 +224,7 @@ func (b *Bot) handleMessage(message *model.MessageIn) {
 	}
 	message.Args = strings.Split(message.Text, " ")
 
-	if len(message.Args) != 0 {
+	if len(message.Args) != 0 && len(message.Args[0]) != 0 {
 		if message.Args[0][0] == '/' {
 			message.Command = message.Args[0]
 			message.Args = message.Args[1:]
