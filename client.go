@@ -117,10 +117,6 @@ func (b *Bot) Start() error {
 
 	send.SetSender(b.handleOutgoing)
 
-	defer func() {
-		go b.handleInComing(updChan, b.qm)
-	}()
-
 	commands := make([]tgbotapi.BotCommand, 0, len(b.handlers))
 
 	for command, handler := range b.handlers {
@@ -151,6 +147,7 @@ func (b *Bot) Start() error {
 		return errors.New(string(jsn))
 	}
 
+	b.handleInComing(updChan, b.qm)
 	return nil
 }
 
