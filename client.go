@@ -44,7 +44,8 @@ type Bot struct {
 	outMessage      chan interfaces.MessageOut
 	responseTimeout time.Duration
 
-	logger logrus.FieldLogger
+	logger          logrus.FieldLogger
+	onlyDirectCalls bool
 }
 
 type quitManager struct {
@@ -171,7 +172,10 @@ func (b *Bot) Stop() {
 }
 
 func (b *Bot) Send(msg interfaces.MessageOut) {
-	b.handleOutgoing(msg)
+	err := b.handleOutgoing(msg)
+	if err != nil {
+		b.logger.WithError(err).Error("error handling outgoing message")
+	}
 }
 
 func (b *Bot) handleInComing(updChan tgbotapi.UpdatesChannel, qm *quitManager) {
@@ -193,6 +197,7 @@ func (b *Bot) handleInComing(updChan tgbotapi.UpdatesChannel, qm *quitManager) {
 				if err != nil {
 					b.logger.Errorf("error responsing to callback %s", err)
 				}
+
 				b.handleMessage(&model.MessageIn{
 					Message:    update.CallbackQuery.Message,
 					IsCallback: true,
@@ -237,6 +242,12 @@ func (b *Bot) handleMessage(message *model.MessageIn) {
 		if message.Args[0][0] == '/' {
 			message.Command = message.Args[0]
 			message.Args = message.Args[1:]
+
+			if strings.HasSuffix(message.Command, "@"+b.Bot.Self.UserName) {
+				message.Command = message.Command[:strings.LastIndex(message.Command, "@")]
+			} else if b.onlyDirectCalls {
+				return
+			}
 		}
 	}
 
