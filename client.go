@@ -43,6 +43,8 @@ type Bot struct {
 	qm              *quitManager
 	outMessage      chan interfaces.MessageOut
 	responseTimeout time.Duration
+
+	logger logrus.FieldLogger
 }
 
 type quitManager struct {
@@ -51,19 +53,29 @@ type quitManager struct {
 }
 
 // NewBot Bot constructor
-func NewBot(token string) *Bot {
-	bot, err := tgbotapi.NewBotAPI(token)
+func NewBot(token string, opts ...opt) *Bot {
+	botApi, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
 		panic(err)
 	}
 
-	return &Bot{
-		Bot:             bot,
+	botInstance := &Bot{
+		Bot:             botApi,
 		handlers:        map[string]interfaces.CommandHandler{},
 		separator:       " ",
 		responseTimeout: interfaces.UserResponseTimeout,
-		defaultHandler:  &internal.DefaultHandler{},
+		logger:          logrus.New(),
 	}
+
+	for _, o := range opts {
+		o(botInstance)
+	}
+
+	botInstance.defaultHandler = &internal.DefaultHandler{
+		Logger: botInstance.logger,
+	}
+
+	return botInstance
 }
 
 // SetDefaultCommandHandler sets custom handler for unresolved messages
@@ -179,7 +191,7 @@ func (b *Bot) handleInComing(updChan tgbotapi.UpdatesChannel, qm *quitManager) {
 
 				_, err := b.Bot.Request(tgbotapi.CallbackConfig{CallbackQueryID: update.CallbackQuery.ID})
 				if err != nil {
-					logrus.Errorf("error responsing to callback %s", err)
+					b.logger.Errorf("error responsing to callback %s", err)
 				}
 				b.handleMessage(&model.MessageIn{
 					Message:    update.CallbackQuery.Message,
@@ -188,7 +200,7 @@ func (b *Bot) handleInComing(updChan tgbotapi.UpdatesChannel, qm *quitManager) {
 
 			}
 		case <-qm.end:
-			logrus.Println("Gracefully shutted down incoming handler")
+			b.logger.Println("Gracefully shutted down incoming handler")
 			qm.wg.Done()
 			return
 		}
@@ -237,9 +249,12 @@ func (b *Bot) handleMessage(message *model.MessageIn) {
 		handler = b.defaultHandler
 	}
 
-	logrus.Infof("%s with args %v", message.Command, message.Args)
-
-	handler.Handle(message, resp)
+	err := handler.Handle(message, resp)
+	if err != nil {
+		b.logger.Errorf("%s with args %v error: %v", message.Command, message.Args, err)
+	} else {
+		b.logger.Infof("%s with args %v", message.Command, message.Args)
+	}
 }
 
 func validateCommand(command string) error {

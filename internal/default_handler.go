@@ -10,11 +10,13 @@ import (
 
 var d interfaces.CommandHandler = &DefaultHandler{}
 
-type DefaultHandler struct{}
+type DefaultHandler struct {
+	Logger logrus.FieldLogger
+}
 
 func (d *DefaultHandler) Handle(in *model.MessageIn, out interfaces.Chat) error {
 	msg := "Couldn't handle \"" + in.Text + "\" command"
-	logrus.Error(msg)
+	d.Logger.Error(msg)
 	return out.SendMessage(response.NewMessage(msg))
 }
 
