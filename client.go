@@ -130,7 +130,7 @@ func (b *Bot) Start() error {
 
 	send.SetSender(b.handleOutgoing)
 
-	commands := make([]tgbotapi.BotCommand, 0, len(b.handlers))
+	commandsWithDescription := make([]tgbotapi.BotCommand, 0, len(b.handlers))
 
 	for command, handler := range b.handlers {
 		err := validateCommand(command)
@@ -140,14 +140,14 @@ func (b *Bot) Start() error {
 
 		d, ok := handler.(interfaces.Description)
 		if ok {
-			commands = append(commands, tgbotapi.BotCommand{
+			commandsWithDescription = append(commandsWithDescription, tgbotapi.BotCommand{
 				Command:     command,
 				Description: d.GetDescription(),
 			})
 		}
 	}
 
-	rsp, err := b.Bot.Request(tgbotapi.NewSetMyCommands(commands...))
+	rsp, err := b.Bot.Request(tgbotapi.NewSetMyCommands(commandsWithDescription...))
 	if err != nil {
 		return errors.Join(errors.New("error performing bot request to update commands"), err)
 	}
