@@ -12,8 +12,9 @@ type MessageOut struct {
 
 	MessageId int64
 
-	Keys     keyboard.Keyboard
-	Entities []tgbotapi.MessageEntity
+	Keys           keyboard.Keyboard
+	Entities       []tgbotapi.MessageEntity
+	ReplyMessageId int64
 }
 
 func NewMessage(text string) *MessageOut {
@@ -53,6 +54,8 @@ func (m *MessageOut) GetMessage() tgbotapi.Chattable {
 		message.ReplyMarkup = keyboard
 
 	}
+
+	message.ReplyToMessageID = int(m.ReplyMessageId)
 
 	return message
 }
