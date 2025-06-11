@@ -22,6 +22,8 @@ type TgApi interface {
 	Stop()
 	AddCommandHandler(handler interfaces.CommandHandler)
 	SetDefaultCommandHandler(h interfaces.Handler)
+
+	Send(msg interfaces.MessageOut) error
 }
 
 // Bot - allows you to interact with telegram bot
@@ -171,11 +173,14 @@ func (b *Bot) Stop() {
 	b.qm.wg.Wait()
 }
 
-func (b *Bot) Send(msg interfaces.MessageOut) {
+func (b *Bot) Send(msg interfaces.MessageOut) error {
 	err := b.handleOutgoing(msg)
 	if err != nil {
 		b.logger.WithError(err).Error("error handling outgoing message")
+		return err
 	}
+
+	return nil
 }
 
 func (b *Bot) handleInComing(updChan tgbotapi.UpdatesChannel, qm *quitManager) {
