@@ -20,7 +20,10 @@ import (
 type TgApi interface {
 	Start() error
 	Stop()
-	AddCommandHandler(handler interfaces.CommandHandler)
+
+	MustAddCommandHandler(handler interfaces.CommandHandler)
+	AddCommandHandler(handler interfaces.CommandHandler) error
+
 	SetDefaultCommandHandler(h interfaces.Handler)
 
 	Send(msg interfaces.MessageOut) error
@@ -56,10 +59,10 @@ type quitManager struct {
 }
 
 // NewBot Bot constructor
-func NewBot(token string, opts ...opt) *Bot {
+func NewBot(token string, opts ...opt) (*Bot, error) {
 	botApi, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("error creating tg bot connection, %w", err)
 	}
 
 	botInstance := &Bot{
@@ -78,7 +81,7 @@ func NewBot(token string, opts ...opt) *Bot {
 		Logger: botInstance.logger,
 	}
 
-	return botInstance
+	return botInstance, nil
 }
 
 // SetDefaultCommandHandler sets custom handler for unresolved messages
@@ -90,12 +93,21 @@ func (b *Bot) SetDefaultCommandHandler(h interfaces.Handler) {
 // for command
 // e.g. for command "/help"
 // handler should send help information to user
-func (b *Bot) AddCommandHandler(handler interfaces.CommandHandler) {
+func (b *Bot) AddCommandHandler(handler interfaces.CommandHandler) error {
 	command := handler.GetCommand()
 	if _, ok := b.handlers[command]; ok {
-		panic(fmt.Sprintf("Command handler with name %s already exists", command))
+		return fmt.Errorf("command handler with name %s already exists", command)
 	}
+
 	b.handlers[command] = handler
+
+	return nil
+}
+func (b *Bot) MustAddCommandHandler(handler interfaces.CommandHandler) {
+	err := b.AddCommandHandler(handler)
+	if err != nil {
+		panic(err)
+	}
 }
 
 // SetResponseTimeout - sets timeout for user to response
