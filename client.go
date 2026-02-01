@@ -201,9 +201,10 @@ func (b *Bot) handleInComing(updChan tgbotapi.UpdatesChannel, qm *quitManager) {
 		case update := <-updChan:
 			switch {
 			case update.Message != nil:
-				b.handleMessage(&model.MessageIn{
+				msg := &model.MessageIn{
 					Message: update.Message,
-				})
+				}
+				b.handleMessage(msg)
 
 			case update.CallbackQuery != nil:
 				message := update.CallbackQuery.Message
@@ -215,10 +216,12 @@ func (b *Bot) handleInComing(updChan tgbotapi.UpdatesChannel, qm *quitManager) {
 					b.logger.Errorf("error responsing to callback %s", err)
 				}
 
-				b.handleMessage(&model.MessageIn{
+				msg := &model.MessageIn{
 					Message:    update.CallbackQuery.Message,
 					IsCallback: true,
-				})
+				}
+
+				b.handleMessage(msg)
 
 			}
 		case <-qm.end:
@@ -239,6 +242,7 @@ func (b *Bot) handleOutgoing(out interfaces.MessageOut) error {
 		if strings.Contains(errMsg, "Bad Request: message is not modified: specified new message content and reply markup are exactly the same as a current content and reply markup of the message") {
 			return nil
 		}
+
 		return err
 	}
 
