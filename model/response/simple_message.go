@@ -15,6 +15,7 @@ type MessageOut struct {
 
 	Keys           keyboard.Keyboard
 	Entities       []tgbotapi.MessageEntity
+	RemoveKeyboard bool
 	ReplyMessageId int64
 
 	Media []media.Media
@@ -69,6 +70,10 @@ func (m *MessageOut) GetMessage() tgbotapi.Chattable {
 		}
 
 		message.ReplyMarkup = keyboard
+	}
+
+	if m.RemoveKeyboard {
+		message.ReplyMarkup = tgbotapi.NewRemoveKeyboard(false)
 	}
 
 	message.ReplyToMessageID = int(m.ReplyMessageId)
