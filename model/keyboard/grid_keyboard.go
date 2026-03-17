@@ -40,7 +40,13 @@ func (b *GridKeyboard) ToInlineMarkup() *tgbotapi.InlineKeyboardMarkup {
 
 	processedButtons := 0
 	for _, btn := range b.buttons {
-		btnMark := tgbotapi.NewInlineKeyboardButtonData(btn.Text, btn.Value)
+
+		var btnMark tgbotapi.InlineKeyboardButton
+		if btn.InternalInlineKeyboardButton != nil {
+			btnMark = *btn.InternalInlineKeyboardButton
+		} else {
+			btnMark = tgbotapi.NewInlineKeyboardButtonData(btn.Text, btn.Value)
+		}
 
 		if btn.IsStandAlone {
 			rows = append(rows, []tgbotapi.InlineKeyboardButton{btnMark})
@@ -81,7 +87,13 @@ func (b *GridKeyboard) ToKeyboardMarkup() *tgbotapi.ReplyKeyboardMarkup {
 
 	processedButtons := 0
 	for _, btn := range b.buttons {
-		btnMark := tgbotapi.NewKeyboardButton(btn.Text)
+
+		var btnMark tgbotapi.KeyboardButton
+		if btn.InternalButton != nil {
+			btnMark = *btn.InternalButton
+		} else {
+			btnMark = tgbotapi.NewKeyboardButton(btn.Text)
+		}
 
 		if btn.IsStandAlone {
 			rows = append(rows, []tgbotapi.KeyboardButton{btnMark})
