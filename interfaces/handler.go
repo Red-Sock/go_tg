@@ -23,3 +23,10 @@ type CommandHandler interface {
 type Description interface {
 	GetDescription() string
 }
+
+// HandlerFunc is a function adapter for Handler, analogous to http.HandlerFunc.
+type HandlerFunc func(in *model.MessageIn, out Chat) error
+
+func (f HandlerFunc) Handle(in *model.MessageIn, out Chat) error {
+	return f(in, out)
+}

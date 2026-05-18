@@ -49,6 +49,7 @@ type Bot struct {
 	outMessage      chan interfaces.MessageOut
 	responseTimeout time.Duration
 
+	middlewares     []interfaces.Middleware
 	logger          logrus.FieldLogger
 	onlyDirectCalls bool
 }
@@ -82,6 +83,12 @@ func NewBot(token string, opts ...opt) (*Bot, error) {
 	}
 
 	return botInstance, nil
+}
+
+// Use registers one or more middlewares. They run before every handler,
+// in registration order (first registered = outermost = runs first).
+func (b *Bot) Use(mw ...interfaces.Middleware) {
+	b.middlewares = append(b.middlewares, mw...)
 }
 
 // SetDefaultCommandHandler sets custom handler for unresolved messages
@@ -279,6 +286,10 @@ func (b *Bot) handleMessage(message *model.MessageIn) {
 	handler, ok := b.handlers[message.Command]
 	if !ok {
 		handler = b.defaultHandler
+	}
+
+	for i := len(b.middlewares) - 1; i >= 0; i-- {
+		handler = b.middlewares[i](handler)
 	}
 
 	err := handler.Handle(message, resp)
