@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -52,6 +53,7 @@ type Bot struct {
 	middlewares     []interfaces.Middleware
 	logger          logrus.FieldLogger
 	onlyDirectCalls bool
+	httpClient      tgbotapi.HTTPClient
 }
 
 type quitManager struct {
@@ -61,13 +63,7 @@ type quitManager struct {
 
 // NewBot Bot constructor
 func NewBot(token string, opts ...opt) (*Bot, error) {
-	botApi, err := tgbotapi.NewBotAPI(token)
-	if err != nil {
-		return nil, fmt.Errorf("error creating tg bot connection, %w", err)
-	}
-
 	botInstance := &Bot{
-		Bot:             botApi,
 		handlers:        map[string]interfaces.CommandHandler{},
 		separator:       " ",
 		responseTimeout: interfaces.UserResponseTimeout,
@@ -77,6 +73,20 @@ func NewBot(token string, opts ...opt) (*Bot, error) {
 	for _, o := range opts {
 		o(botInstance)
 	}
+
+	if botInstance.httpClient == nil {
+		botInstance.httpClient = &loggingHTTPClient{
+			inner:  http.DefaultClient,
+			logger: botInstance.logger,
+		}
+	}
+
+	botApi, err := tgbotapi.NewBotAPIWithClient(token, tgbotapi.APIEndpoint, botInstance.httpClient)
+	if err != nil {
+		return nil, fmt.Errorf("error creating tg bot connection, %w", err)
+	}
+
+	botInstance.Bot = botApi
 
 	botInstance.defaultHandler = &internal.DefaultHandler{
 		Logger: botInstance.logger,
