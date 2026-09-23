@@ -26,8 +26,12 @@ type TgApi interface {
 	AddCommandHandler(handler interfaces.CommandHandler) error
 
 	SetDefaultCommandHandler(h interfaces.Handler)
+	SetInlineQueryHandler(h interfaces.InlineQueryHandler)
+	SetChosenInlineResultHandler(h interfaces.ChosenInlineResultHandler)
 
 	Send(msg interfaces.MessageOut) error
+	SendAndReturn(msg interfaces.MessageOut) (tgbotapi.Message, error)
+	EditInlineMessageAudio(inlineMessageId, fileId string) error
 }
 
 // Bot - allows you to interact with telegram bot
@@ -40,8 +44,10 @@ type TgApi interface {
 type Bot struct {
 	Bot *tgbotapi.BotAPI
 
-	handlers       map[string]interfaces.CommandHandler
-	defaultHandler interfaces.Handler
+	handlers                  map[string]interfaces.CommandHandler
+	defaultHandler            interfaces.Handler
+	inlineQueryHandler        interfaces.InlineQueryHandler
+	chosenInlineResultHandler interfaces.ChosenInlineResultHandler
 
 	interfaces.ExternalContext
 	separator string
@@ -104,6 +110,21 @@ func (b *Bot) Use(mw ...interfaces.Middleware) {
 // SetDefaultCommandHandler sets custom handler for unresolved messages
 func (b *Bot) SetDefaultCommandHandler(h interfaces.Handler) {
 	b.defaultHandler = h
+}
+
+// SetInlineQueryHandler sets the handler for inline queries - triggered when
+// a user types "@botname <query>" in any chat. A bot without one set simply
+// ignores inline queries (Telegram shows no results, no error).
+func (b *Bot) SetInlineQueryHandler(h interfaces.InlineQueryHandler) {
+	b.inlineQueryHandler = h
+}
+
+// SetChosenInlineResultHandler sets the handler notified when a user taps one
+// of the results a previous inline query was answered with. Requires
+// inline feedback enabled for the bot via BotFather (/setinlinefeedback) -
+// Telegram otherwise never sends chosen_inline_result updates.
+func (b *Bot) SetChosenInlineResultHandler(h interfaces.ChosenInlineResultHandler) {
+	b.chosenInlineResultHandler = h
 }
 
 // AddCommandHandler adds a command handler
@@ -212,6 +233,37 @@ func (b *Bot) Send(msg interfaces.MessageOut) error {
 	return nil
 }
 
+// SendAndReturn behaves like Send but also hands back Telegram's response
+// message, e.g. to read the file_id Telegram assigned a freshly uploaded
+// audio file for later reuse via an InlineQueryResultCached* result.
+func (b *Bot) SendAndReturn(msg interfaces.MessageOut) (tgbotapi.Message, error) {
+	sendMsg, err := b.sendAndReturn(msg)
+	if err != nil {
+		b.logger.WithError(err).Error("error handling outgoing message")
+		return tgbotapi.Message{}, err
+	}
+
+	return sendMsg, nil
+}
+
+// EditInlineMessageAudio replaces an inline message's content with the audio
+// identified by fileId - used to redeliver an already-known Telegram file_id
+// into whichever chat the inline message lives in, once it's ready.
+func (b *Bot) EditInlineMessageAudio(inlineMessageId, fileId string) error {
+	edit := tgbotapi.EditMessageMediaConfig{
+		BaseEdit: tgbotapi.BaseEdit{InlineMessageID: inlineMessageId},
+		Media:    tgbotapi.NewInputMediaAudio(tgbotapi.FileID(fileId)),
+	}
+
+	_, err := b.Bot.Request(edit)
+	if err != nil {
+		b.logger.WithError(err).Error("error editing inline message audio")
+		return err
+	}
+
+	return nil
+}
+
 func (b *Bot) handleInComing(updChan tgbotapi.UpdatesChannel, qm *quitManager) {
 	for {
 		select {
@@ -240,6 +292,11 @@ func (b *Bot) handleInComing(updChan tgbotapi.UpdatesChannel, qm *quitManager) {
 
 				b.handleMessage(msg)
 
+			case update.InlineQuery != nil:
+				b.handleInlineQuery(update.InlineQuery)
+
+			case update.ChosenInlineResult != nil:
+				b.handleChosenInlineResult(update.ChosenInlineResult)
 			}
 		case <-qm.end:
 			b.logger.Println("Gracefully shutted down incoming handler")
@@ -250,22 +307,30 @@ func (b *Bot) handleInComing(updChan tgbotapi.UpdatesChannel, qm *quitManager) {
 }
 
 func (b *Bot) handleOutgoing(out interfaces.MessageOut) error {
+	_, err := b.sendAndReturn(out)
+	return err
+}
+
+// sendAndReturn sends out and, unlike handleOutgoing, also hands back
+// Telegram's response message - needed by SendAndReturn to read back fields
+// Telegram assigns on send (e.g. Audio.FileID for a freshly uploaded file).
+func (b *Bot) sendAndReturn(out interfaces.MessageOut) (tgbotapi.Message, error) {
 	sendMsg, err := b.Bot.Send(out.GetMessage())
 	if err != nil {
 		errMsg := err.Error()
 		if strings.Contains(errMsg, "json: cannot unmarshal bool into Go value of type tgbotapi.Message") {
-			return nil
+			return tgbotapi.Message{}, nil
 		}
 		if strings.Contains(errMsg, "Bad Request: message is not modified: specified new message content and reply markup are exactly the same as a current content and reply markup of the message") {
-			return nil
+			return tgbotapi.Message{}, nil
 		}
 
-		return err
+		return tgbotapi.Message{}, err
 	}
 
 	out.ForceSetMessageId(int64(sendMsg.MessageID))
 
-	return nil
+	return sendMsg, nil
 }
 
 func (b *Bot) handleMessage(message *model.MessageIn) {
@@ -307,6 +372,43 @@ func (b *Bot) handleMessage(message *model.MessageIn) {
 		b.logger.Errorf("%s with args %v error: %v", message.Command, message.Args, err)
 	} else {
 		b.logger.Infof("%s with args %v", message.Command, message.Args)
+	}
+}
+
+func (b *Bot) handleInlineQuery(q *tgbotapi.InlineQuery) {
+	if b.inlineQueryHandler == nil {
+		return
+	}
+
+	in := &model.InlineQueryIn{InlineQuery: q}
+
+	results, err := b.inlineQueryHandler.Handle(in)
+	if err != nil {
+		b.logger.Errorf("inline query %q error: %v", q.Query, err)
+		return
+	}
+
+	answer := tgbotapi.InlineConfig{
+		InlineQueryID: q.ID,
+		Results:       results,
+	}
+
+	_, err = b.Bot.Request(answer)
+	if err != nil {
+		b.logger.Errorf("error answering inline query %q: %v", q.Query, err)
+	}
+}
+
+func (b *Bot) handleChosenInlineResult(r *tgbotapi.ChosenInlineResult) {
+	if b.chosenInlineResultHandler == nil {
+		return
+	}
+
+	in := &model.ChosenInlineResultIn{ChosenInlineResult: r}
+
+	err := b.chosenInlineResultHandler.HandleChosen(in)
+	if err != nil {
+		b.logger.Errorf("chosen inline result %q error: %v", r.ResultID, err)
 	}
 }
 
