@@ -32,6 +32,7 @@ type TgApi interface {
 	Send(msg interfaces.MessageOut) error
 	SendAndReturn(msg interfaces.MessageOut) (tgbotapi.Message, error)
 	EditInlineMessageAudio(inlineMessageId, fileId string) error
+	DeleteMessage(chatId int64, messageId int) error
 }
 
 // Bot - allows you to interact with telegram bot
@@ -258,6 +259,21 @@ func (b *Bot) EditInlineMessageAudio(inlineMessageId, fileId string) error {
 	_, err := b.Bot.Request(edit)
 	if err != nil {
 		b.logger.WithError(err).Error("error editing inline message audio")
+		return err
+	}
+
+	return nil
+}
+
+// DeleteMessage deletes messageId from chatId - used to remove a relay-upload
+// message once its file_id has been captured, so the relay chat never shows
+// the upload as a lingering message.
+func (b *Bot) DeleteMessage(chatId int64, messageId int) error {
+	del := tgbotapi.NewDeleteMessage(chatId, messageId)
+
+	_, err := b.Bot.Request(del)
+	if err != nil {
+		b.logger.WithError(err).Error("error deleting message")
 		return err
 	}
 
